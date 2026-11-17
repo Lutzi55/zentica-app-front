@@ -1,0 +1,14 @@
+@* Botones para contactar: mensaje en la app, llamada y WhatsApp *@
+<div class="contacto-botones">
+    <a class="btn-z" href="@RutaChat"><i class="bi bi-chat-dots"></i> Mensaje</a>
+    @if (Contacto.TieneTelefono(Telefono))
+    {
+        <a class="btn-z-sec" href="@Contacto.Llamar(Telefono)" target="_blank"><i class="bi bi-telephone"></i></a>
+        <a class="btn-z-sec" href="@Contacto.WhatsApp(Telefono)" target="_blank"><i class="bi bi-whatsapp"></i></a>
+    }
+</div>
+
+@code {
+    [Parameter] public string RutaChat { get; set; } = "/";
+    [Parameter] public string? Telefono { get; set; }
+}

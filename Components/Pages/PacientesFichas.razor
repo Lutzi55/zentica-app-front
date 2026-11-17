@@ -1,0 +1,83 @@
+﻿@page "/doctor/pacientes"
+@layout LayoutDoctor
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Pacientes / Fichas" Volver="/doctor/home" />
+
+    <button class="btn-z btn-bloque mb-3" @onclick='() => Navigation.NavigateTo("/doctor/mascotas/nuevo")'>
+        <i class="bi bi-plus-circle"></i> Registrar Nueva Mascota
+    </button>
+
+    <div class="buscador">
+        <i class="bi bi-search"></i>
+        <input class="input-z" placeholder="DNI del dueño, nombre del dueño o de la mascota" @bind="buscar" @onkeyup="EnterBuscar" />
+    </div>
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (!cargando && !mascotas.Any())
+    {
+        <Vacio Icono="bi-search-heart" Texto="No se encontraron pacientes." />
+    }
+
+    @foreach (var m in mascotas)
+    {
+        <div class="card-z">
+            <div class="card-cab" @onclick="() => abierta = abierta == m.IdMascota ? null : m.IdMascota">
+                <FotoMascota Foto="@m.Foto" Rosa="m.VacunaPendiente" />
+                <div class="flex-grow-1 min-w-0">
+                    <h6 class="text-truncate">@m.Nombre</h6>
+                    <span class="texto-gris">@m.Especie · @m.Raza · Dueño: @m.Duenio</span>
+                </div>
+                <i class="bi @(abierta == m.IdMascota ? "bi-chevron-up" : "bi-chevron-down") texto-gris"></i>
+            </div>
+
+            @if (abierta == m.IdMascota)
+            {
+                <div class="card-detalle">
+                    <div class="fila-dato"><span>Sexo</span><span>@(m.Sexo ?? "-")</span></div>
+                    <div class="fila-dato"><span>Edad</span><span>@Formato.Edad(m.FechaNacimiento)</span></div>
+                    <div class="fila-dato"><span>Raza</span><span>@m.Raza</span></div>
+                    <div class="fila-dato"><span>Peso</span><span>@Formato.Peso(m.Peso)</span></div>
+                    <div class="fila-dato"><span>Dueño</span><span>@m.Duenio</span></div>
+                    <div class="fila-dato"><span>DNI</span><span>@(string.IsNullOrEmpty(m.DuenioDni) ? "-" : m.DuenioDni)</span></div>
+                    <div class="fila-dato"><span>Teléfono</span><span>@(m.DuenioTelefono ?? "-")</span></div>
+                    @if (m.VacunaPendiente)
+                    {
+                        <span class="chip chip-rosa">Vacuna pendiente</span>
+                    }
+                    <div class="fila-botones mt-3">
+                        <button class="btn-z-sec" @onclick='() => Navigation.NavigateTo($"/doctor/mascotas/editar/{m.IdMascota}")'><i class="bi bi-pencil"></i> Editar</button>
+                        <button class="btn-z" @onclick='() => Navigation.NavigateTo($"/doctor/historial/{m.IdMascota}")'><i class="bi bi-journal-medical"></i> Historial</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Mascota> mascotas = new();
+    private string buscar = string.Empty;
+    private int? abierta;
+    private bool cargando = true;
+    private string? error;
+
+    protected override Task OnInitializedAsync() => Buscar();
+
+    private async Task EnterBuscar(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Buscar();
+    }
+
+    private async Task Buscar()
+    {
+        cargando = true;
+        mascotas = await Api.GetListaAsync<Mascota>($"api/mascotas?buscar={Uri.EscapeDataString(buscar.Trim())}");
+        error = Api.UltimoError;
+        abierta = mascotas.Count == 1 ? mascotas[0].IdMascota : null;
+        cargando = false;
+    }
+}

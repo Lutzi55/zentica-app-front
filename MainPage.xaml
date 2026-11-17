@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:Zentica_frontend"
+             xmlns:comp="clr-namespace:Zentica_frontend.Components"
+             x:Class="Zentica_frontend.MainPage">
+
+    <BlazorWebView HostPage="wwwroot/index.html">
+        <BlazorWebView.RootComponents>
+            <RootComponent Selector="#app" ComponentType="{x:Type comp:Routes}" />
+        </BlazorWebView.RootComponents>
+    </BlazorWebView>
+</ContentPage>

@@ -1,0 +1,25 @@
+@* Ventana de confirmación exitosa (tilde grande + mensaje + botón) *@
+@if (Visible)
+{
+    <div class="hoja-fondo centro-fondo" @onclick="Cerrar">
+        <div class="hoja centro exito" @onclick:stopPropagation="true">
+            <div class="exito-icono"><i class="bi bi-check-lg"></i></div>
+            <h5>@Titulo</h5>
+            @if (!string.IsNullOrEmpty(Mensaje))
+            {
+                <p class="texto-gris">@Mensaje</p>
+            }
+            <button class="btn-z btn-bloque" @onclick="Cerrar">@TextoBoton</button>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Titulo { get; set; } = "¡Listo!";
+    [Parameter] public string? Mensaje { get; set; }
+    [Parameter] public string TextoBoton { get; set; } = "Aceptar";
+    [Parameter] public EventCallback OnCerrar { get; set; }
+
+    private Task Cerrar() => OnCerrar.InvokeAsync();
+}

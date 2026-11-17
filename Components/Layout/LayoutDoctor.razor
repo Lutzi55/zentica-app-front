@@ -1,0 +1,20 @@
+﻿@inherits LayoutBase
+
+@if (Autorizado)
+{
+    @Body
+    <BarraInferior Items="items" />
+}
+
+@code {
+    protected override string RolPermitido => "Veterinario";
+
+    private readonly List<BarraInferior.Item> items = new()
+    {
+        new("Inicio", "bi-house", "/doctor/home"),
+        new("Agenda", "bi-calendar-check", "/doctor/agenda"),
+        new("Pacientes", "bi-clipboard2-pulse", "/doctor/pacientes"),
+        new("Guardias", "bi-calendar-event", "/doctor/guardias"),
+        new("Perfil", "bi-person", "/doctor/perfil")
+    };
+}

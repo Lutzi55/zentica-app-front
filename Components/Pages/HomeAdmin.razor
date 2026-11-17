@@ -1,0 +1,66 @@
+﻿@page "/admin/home"
+@layout LayoutAdmin
+@inject NavigationManager Nav
+@inject ApiService Api
+
+<div class="home">
+    <div class="encabezado">
+        <div>
+            <small>Administrador · Zéntica Central</small>
+            <h2>@Api.Sesion?.Nombre</h2>
+        </div>
+        <button class="avatar" @onclick='() => Nav.NavigateTo("/admin/perfil")' title="Mi perfil">@Iniciales</button>
+    </div>
+
+    <div class="tarjeta" @onclick='() => Nav.NavigateTo("/admin/usuarios")'>
+        <div class="icono verde"><i class="bi bi-people-fill"></i></div>
+        <div class="texto"><h5>Gestionar Usuarios</h5><p>@(resumen?.Usuarios.ToString() ?? "…") usuarios activos · altas, bajas y roles</p></div>
+        <i class="bi bi-chevron-right flecha"></i>
+    </div>
+
+    <div class="tarjeta" @onclick='() => Nav.NavigateTo("/admin/veterinarios")'>
+        <div class="icono verde"><i class="bi bi-heart-pulse-fill"></i></div>
+        <div class="texto"><h5>Gestionar Veterinarios</h5><p>@(resumen?.Veterinarios.ToString() ?? "…") doctores activos</p></div>
+        <i class="bi bi-chevron-right flecha"></i>
+    </div>
+
+    <div class="tarjeta" @onclick='() => Nav.NavigateTo("/admin/guardias")'>
+        <div class="icono rosa"><i class="bi bi-calendar2-week-fill"></i></div>
+        <div class="texto"><h5>Turnos de Guardia</h5><p>@(resumen?.GuardiasMes.ToString() ?? "…") guardias asignadas este mes</p></div>
+        <i class="bi bi-chevron-right flecha"></i>
+    </div>
+
+    @if (error != null)
+    {
+        <Aviso Error="@error" />
+    }
+    else
+    {
+        <div class="estado">
+            <i class="bi bi-check-circle-fill"></i>
+            <div>
+                <strong>Sistema operativo</strong>
+                <p>@(resumen?.Mascotas ?? 0) mascotas registradas · @(resumen?.TurnosHoy ?? 0) turnos para hoy.</p>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private ResumenAdmin? resumen;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        resumen = await Api.GetAsync<ResumenAdmin>("api/resumen");
+        if (resumen == null) error = Api.UltimoError;
+    }
+
+    private void CerrarSesion()
+    {
+        Api.CerrarSesion();
+        Nav.NavigateTo("/login");
+    }
+
+    private string Iniciales => string.Concat((Api.Sesion?.Nombre ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpper(x[0])));
+}

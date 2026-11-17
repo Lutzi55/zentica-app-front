@@ -1,0 +1,39 @@
+@inject ApiService Api
+@inject NavigationManager Nav
+
+@* Perfil del usuario logueado (lo usan los tres roles) *@
+<div class="pantalla">
+    <div class="perfil-cab">
+        <Avatar Nombre="@(Api.Sesion?.Nombre ?? "")" Grande="true" />
+        <h4>@Api.Sesion?.Nombre</h4>
+        <span class="chip chip-verde">@Api.Rol</span>
+    </div>
+
+    <div class="card-z">
+        <div class="fila-dato"><span><i class="bi bi-envelope me-2"></i>Email</span><span>@Api.Sesion?.Email</span></div>
+        <div class="fila-dato"><span><i class="bi bi-person-badge me-2"></i>Rol</span><span>@Api.Rol</span></div>
+        <div class="fila-dato"><span><i class="bi bi-hash me-2"></i>N° de usuario</span><span>#@Api.Sesion?.IdUsuario</span></div>
+    </div>
+
+    <div class="card-z">
+        <div class="fila-dato"><span><i class="bi bi-hospital me-2"></i>Clínica</span><span>Zéntica · Clínica & Veterinaria</span></div>
+        <div class="fila-dato"><span><i class="bi bi-phone me-2"></i>Versión de la app</span><span>1.0</span></div>
+    </div>
+
+    <button class="btn-salir btn-bloque mt-2" @onclick="() => confirmar = true">
+        <i class="bi bi-box-arrow-right"></i> Cerrar sesión
+    </button>
+</div>
+
+<Confirmar Visible="confirmar" Titulo="Cerrar sesión" Mensaje="¿Querés salir de tu cuenta?"
+           TextoBoton="Cerrar sesión" OnConfirmar="Salir" OnCancelar="() => confirmar = false" />
+
+@code {
+    private bool confirmar;
+
+    private void Salir()
+    {
+        Api.CerrarSesion();
+        Nav.NavigateTo("/login");
+    }
+}

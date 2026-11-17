@@ -1,0 +1,83 @@
+@page "/turnos"
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Mis Turnos" Volver="/home">
+        <button class="btn-z" @onclick='() => Navigation.NavigateTo("/turnos/nuevo")'><i class="bi bi-plus-lg"></i> Nuevo Turno</button>
+    </Encabezado>
+
+    <div class="segmentado mb-3">
+        <button class="@(verHistorial ? "" : "activo")" @onclick="() => verHistorial = false">Próximos</button>
+        <button class="@(verHistorial ? "activo" : "")" @onclick="() => verHistorial = true">Historial</button>
+    </div>
+
+    <Aviso Cargando="cargando" Error="@error" Ok="@ok" />
+
+    @if (!cargando && !Lista.Any())
+    {
+        <Vacio Icono="bi-calendar-x" Texto="@(verHistorial ? "No hay turnos anteriores." : "No tenés turnos próximos.")" />
+    }
+
+    @foreach (var t in Lista)
+    {
+        <div class="card-z">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <span class="@Formato.ClaseEstado(t.Estado)">@(t.Estado == "Aceptado" ? "Confirmado" : t.Estado)</span>
+                <span class="texto-gris"><i class="bi bi-clock me-1"></i>@Formato.Fecha(t.FechaYHora) · @Formato.Hora(t.FechaYHora)</span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <div class="icono-redondo @(t.EsUrgencia ? "rosa" : "")"><i class="bi bi-heart-pulse-fill"></i></div>
+                <div>
+                    <h6>@(t.Motivo ?? "Consulta") - @t.Mascota</h6>
+                    <p class="texto-gris mb-0">@t.Doctor • Clínica Zéntica</p>
+                </div>
+            </div>
+            @if (!verHistorial)
+            {
+                <div class="fila-botones mt-3">
+                    <button class="btn-z-rosa" @onclick="() => aCancelar = t">Cancelar</button>
+                    <button class="btn-z-sec" @onclick='() => Navigation.NavigateTo($"/mascotas/detalle/{t.IdMascota}")'>Ver Mascota</button>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+<Confirmar Visible="aCancelar != null" Titulo="Cancelar turno"
+           Mensaje="@($"¿Cancelar el turno de {aCancelar?.Mascota} del {(aCancelar != null ? Formato.FechaHora(aCancelar.FechaYHora) : "")}?")"
+           TextoBoton="Cancelar turno" Procesando="procesando" OnConfirmar="ConfirmarCancelacion" OnCancelar="() => aCancelar = null" />
+
+@code {
+    private List<Turno> turnos = new();
+    private bool verHistorial, cargando = true, procesando;
+    private string? error, ok;
+    private Turno? aCancelar;
+
+    private static bool EsProximo(Turno t) => t.FechaYHora >= DateTime.Now && t.Estado is "Pendiente" or "Aceptado";
+
+    private IEnumerable<Turno> Lista => verHistorial
+        ? turnos.Where(t => !EsProximo(t)).OrderByDescending(t => t.FechaYHora)
+        : turnos.Where(EsProximo).OrderBy(t => t.FechaYHora);
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        turnos = await Api.GetListaAsync<Turno>("api/turnos");
+        error = Api.UltimoError;
+        cargando = false;
+    }
+
+    private async Task ConfirmarCancelacion()
+    {
+        if (aCancelar == null) return;
+        procesando = true;
+        var r = await Api.PatchAsync($"api/turnos/{aCancelar.IdTurno}/estado", new { estado = "Cancelado" });
+        procesando = false;
+        aCancelar = null;
+        await Cargar();
+        if (r.Ok) ok = "Turno cancelado."; else error = r.Error;
+    }
+}

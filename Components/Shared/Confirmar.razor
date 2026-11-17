@@ -1,0 +1,24 @@
+@* Diálogo de confirmación (por ejemplo antes de dar de baja) *@
+<Hoja Visible="Visible" Titulo="@Titulo" Centro="true" OnCerrar="OnCancelar">
+    <p class="texto-gris mb-3">@Mensaje</p>
+    <div class="fila-botones">
+        <button class="btn-z-sec" @onclick="OnCancelar" disabled="@Procesando">Cancelar</button>
+        <button class="btn-z-rosa" @onclick="OnConfirmar" disabled="@Procesando">
+            @if (Procesando)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            @TextoBoton
+        </button>
+    </div>
+</Hoja>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Titulo { get; set; } = "¿Confirmar?";
+    [Parameter] public string Mensaje { get; set; } = string.Empty;
+    [Parameter] public string TextoBoton { get; set; } = "Confirmar";
+    [Parameter] public bool Procesando { get; set; }
+    [Parameter] public EventCallback OnConfirmar { get; set; }
+    [Parameter] public EventCallback OnCancelar { get; set; }
+}

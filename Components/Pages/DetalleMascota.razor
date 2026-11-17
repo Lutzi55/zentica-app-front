@@ -1,0 +1,104 @@
+﻿@page "/mascotas/detalle/{Id:int}"
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Mis Mascotas" Volver="/mascotas" />
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (mascota != null)
+    {
+        <div class="card-z text-center">
+            <div class="foto-editar mb-2">
+                <FotoMascota Foto="@mascota.Foto" Grande="true" Clase="mx-auto" />
+                <button class="btn-camara" @onclick='() => Navigation.NavigateTo($"/mascotas/foto/{Id}")' title="Cambiar foto"><i class="bi bi-camera-fill"></i></button>
+            </div>
+            <h5 class="fw-bold mb-0">@mascota.Nombre.ToUpper()</h5>
+            <span class="texto-gris">@mascota.Especie</span>
+        </div>
+
+        <div class="card-z">
+            <div class="fila-dato"><span>Sexo</span><span>@(mascota.Sexo ?? "-")</span></div>
+            <div class="fila-dato"><span>Edad</span><span>@Formato.Edad(mascota.FechaNacimiento)</span></div>
+            <div class="fila-dato"><span>Raza</span><span>@mascota.Raza</span></div>
+            <div class="fila-dato"><span>Peso</span><span>@Formato.Peso(mascota.Peso)</span></div>
+            <div class="fila-dato"><span>Color</span><span>@(mascota.Color ?? "-")</span></div>
+        </div>
+
+        <!-- Vacunas (agrupadas dentro del detalle) -->
+        <div class="card-z">
+            <div class="card-cab" @onclick="() => mostrarVacunas = !mostrarVacunas">
+                <i class="bi bi-shield-plus text-rosa"></i>
+                <h6 class="flex-grow-1">Vacunas @(pendientes > 0 ? $"({pendientes} pendiente/s)" : "")</h6>
+                <i class="bi @(mostrarVacunas ? "bi-chevron-up" : "bi-chevron-down") texto-gris"></i>
+            </div>
+            @if (mostrarVacunas)
+            {
+                <div class="card-detalle">
+                    <ListaVacunas Vacunas="vacunas" />
+                </div>
+            }
+        </div>
+
+        <!-- Historial de consultas -->
+        <div class="card-z">
+            <div class="card-cab" @onclick="() => mostrarConsultas = !mostrarConsultas">
+                <i class="bi bi-journal-medical text-rosa"></i>
+                <h6 class="flex-grow-1">Historial de consultas (@consultas.Count)</h6>
+                <i class="bi @(mostrarConsultas ? "bi-chevron-up" : "bi-chevron-down") texto-gris"></i>
+            </div>
+            @if (mostrarConsultas)
+            {
+                <div class="card-detalle">
+                    @if (!consultas.Any())
+                    {
+                        <p class="texto-gris mb-0">Todavía no tiene consultas registradas.</p>
+                    }
+                    @foreach (var c in consultas)
+                    {
+                        <div class="item-lista d-block">
+                            <div class="d-flex justify-content-between">
+                                <strong>@(c.Motivo ?? "Consulta")</strong>
+                                <span class="texto-gris">@Formato.Fecha(c.Fecha)</span>
+                            </div>
+                            <span class="texto-gris d-block mb-1">@c.Doctor</span>
+                            <div class="caja-texto">@c.Diagnostico</div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <button class="btn-z btn-bloque" @onclick='() => Navigation.NavigateTo($"/turnos/nuevo?mascota={Id}")'>
+            <i class="bi bi-calendar-plus"></i> Pedir turno para @mascota.Nombre
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Mascota? mascota;
+    private List<Vacuna> vacunas = new();
+    private List<Consulta> consultas = new();
+    private bool cargando = true, mostrarVacunas = true, mostrarConsultas;
+    private string? error;
+
+    private int pendientes => vacunas.GroupBy(v => v.Nombre.Trim().ToLower())
+        .Select(g => g.OrderByDescending(v => v.FechaAplicacion).First())
+        .Count(v => ListaVacunas.Estado(v) != "Al día");
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cargando = true;
+        mascota = await Api.GetAsync<Mascota>($"api/mascotas/{Id}");
+        error = Api.UltimoError;
+        if (mascota != null)
+        {
+            vacunas = await Api.GetListaAsync<Vacuna>($"api/vacunas/mascota/{Id}");
+            consultas = await Api.GetListaAsync<Consulta>($"api/servicios/mascota/{Id}");
+        }
+        cargando = false;
+    }
+}

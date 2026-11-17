@@ -1,0 +1,32 @@
+@inject NavigationManager Nav
+@implements IDisposable
+
+@* Barra de navegación fija abajo. Marca como activo el ítem de la ruta actual. *@
+<nav class="barra">
+    @foreach (var item in Items)
+    {
+        var activo = EsActivo(item.Ruta);
+        <a class="@(activo ? "activo" : "")" @onclick="() => Nav.NavigateTo(item.Ruta)">
+            <i class="bi @(activo ? item.Icono + "-fill" : item.Icono)"></i>@item.Texto
+        </a>
+    }
+</nav>
+
+@code {
+    public record Item(string Texto, string Icono, string Ruta);
+
+    [Parameter] public List<Item> Items { get; set; } = new();
+
+    protected override void OnInitialized() => Nav.LocationChanged += AlNavegar;
+
+    private void AlNavegar(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    private bool EsActivo(string ruta)
+    {
+        var actual = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0];
+        // El primer ítem (inicio) solo se marca si la ruta es exacta
+        return ruta == Items.FirstOrDefault()?.Ruta ? actual == ruta : actual.StartsWith(ruta);
+    }
+
+    public void Dispose() => Nav.LocationChanged -= AlNavegar;
+}

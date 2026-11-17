@@ -1,0 +1,87 @@
+﻿@inject ApiService Api
+
+@* Calendario de guardias (solo lectura) con selector de veterinario *@
+<div class="pills">
+    @foreach (var v in veterinarios)
+    {
+        <button class="pill @(v.IdDoctor == idDoctor ? "activa" : "")" @onclick="() => idDoctor = v.IdDoctor">@v.NombreCompleto</button>
+    }
+</div>
+
+<Aviso Cargando="cargando" Error="@error" />
+
+@if (!cargando && !veterinarios.Any())
+{
+    <Vacio Icono="bi-person-badge" Texto="No hay veterinarios cargados." />
+}
+
+<Calendario Mes="mes" MesChanged="CambiarMes" ClaseDia="ClaseDia" OnDiaClick="d => dia = d" Seleccionado="dia">
+    <div class="leyenda"><span>Días de guardia asignados</span></div>
+</Calendario>
+
+@if (DeHoy.Any())
+{
+    <div class="banner">
+        <span class="chip">Hoy de guardia</span>
+        @foreach (var g in DeHoy)
+        {
+            <p><i class="bi bi-person-badge"></i> @g.Doctor · @Formato.Horario(g.HoraInicio, g.HoraFin)</p>
+        }
+    </div>
+}
+
+@if (dia.HasValue)
+{
+    <div class="titulo-seccion"><h6>@Formato.FechaLarga(dia.Value)</h6></div>
+    var delDia = guardias.Where(g => g.Fecha.Date == dia.Value.Date).ToList();
+    @if (!delDia.Any())
+    {
+        <p class="texto-gris">Nadie tiene guardia asignada ese día.</p>
+    }
+    @foreach (var g in delDia)
+    {
+        <div class="card-z d-flex align-items-center gap-3">
+            <div class="icono-redondo rosa"><i class="bi bi-calendar2-week-fill"></i></div>
+            <div><h6>@g.Doctor</h6><span class="texto-gris">@Formato.Horario(g.HoraInicio, g.HoraFin)</span></div>
+        </div>
+    }
+}
+
+@code {
+    // Veterinario que se muestra primero (ej. el propio doctor)
+    [Parameter] public int? IdDoctorInicial { get; set; }
+
+    private List<Veterinario> veterinarios = new();
+    private List<Guardia> guardias = new();
+    private DateTime mes = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime? dia;
+    private int idDoctor;
+    private bool cargando = true;
+    private string? error;
+
+    private IEnumerable<Guardia> DeHoy => guardias.Where(g => g.Fecha.Date == DateTime.Today);
+
+    protected override async Task OnInitializedAsync()
+    {
+        veterinarios = await Api.GetListaAsync<Veterinario>("api/doctores");
+        idDoctor = IdDoctorInicial ?? veterinarios.FirstOrDefault()?.IdDoctor ?? 0;
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        guardias = await Api.GetListaAsync<Guardia>($"api/guardias?anio={mes.Year}&mes={mes.Month}");
+        error = Api.UltimoError;
+        cargando = false;
+    }
+
+    private async Task CambiarMes(DateTime nuevo)
+    {
+        mes = nuevo;
+        dia = null;
+        await Cargar();
+    }
+
+    private string? ClaseDia(DateTime d) => guardias.Any(g => g.Fecha.Date == d && g.IdDoctor == idDoctor) ? "marcado" : null;
+}

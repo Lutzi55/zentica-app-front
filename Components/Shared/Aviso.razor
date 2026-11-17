@@ -1,0 +1,21 @@
+@* Muestra "cargando", un error o un mensaje de éxito *@
+@if (Cargando)
+{
+    <div class="cargando">
+        <div class="spinner-border spinner-border-sm me-2" role="status"></div> Cargando...
+    </div>
+}
+@if (!string.IsNullOrEmpty(Error))
+{
+    <div class="aviso error"><i class="bi bi-exclamation-circle-fill"></i><span>@Error</span></div>
+}
+@if (!string.IsNullOrEmpty(Ok))
+{
+    <div class="aviso ok"><i class="bi bi-check-circle-fill"></i><span>@Ok</span></div>
+}
+
+@code {
+    [Parameter] public bool Cargando { get; set; }
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public string? Ok { get; set; }
+}

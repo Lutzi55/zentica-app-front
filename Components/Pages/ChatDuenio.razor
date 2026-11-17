@@ -1,0 +1,7 @@
+@page "/mensajes/{IdUsuario:int}"
+
+<ChatConversacion IdUsuario="IdUsuario" ListaRuta="/mensajes" />
+
+@code {
+    [Parameter] public int IdUsuario { get; set; }
+}

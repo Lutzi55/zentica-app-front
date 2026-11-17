@@ -1,0 +1,140 @@
+﻿@page "/doctor/diagnostico/{IdTurno:int}"
+@layout LayoutDoctor
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Registrar Diagnóstico" Volver="@($"/doctor/atender/{IdTurno}")" />
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (turno != null && turno.Estado is "Aceptado" or "Pendiente")
+    {
+        <div class="card-z">
+            <div class="fila-botones">
+                <div><span class="texto-gris d-block">Paciente</span><strong>@turno.Mascota</strong></div>
+                <div><span class="texto-gris d-block">Raza</span><strong>@turno.Raza</strong></div>
+            </div>
+            <div class="fila-botones mt-2">
+                <div><span class="texto-gris d-block">Motivo de turno</span><strong>@(turno.Motivo ?? "-")</strong></div>
+                <div><span class="texto-gris d-block">Fecha</span><strong>@Formato.FechaHora(turno.FechaYHora)</strong></div>
+            </div>
+        </div>
+
+        <div class="card-z">
+            <div class="campo">
+                <label>Diagnóstico / Observaciones *</label>
+                <textarea class="input-z" rows="4" placeholder="Escribí el diagnóstico y las observaciones..." @bind="form.Diagnostico"></textarea>
+            </div>
+
+            @if (verTratamiento)
+            {
+                <div class="campo">
+                    <label>Tratamiento</label>
+                    <textarea class="input-z" rows="3" placeholder="Indicaciones, dosis, duración..." @bind="form.Tratamiento"></textarea>
+                </div>
+            }
+
+            <div class="campo mb-0">
+                <label>Costo de la consulta ($)</label>
+                <input type="number" min="0" step="100" class="input-z" @bind="form.Costo" />
+            </div>
+        </div>
+
+        <!-- Vacunas aplicadas en esta consulta -->
+        @if (form.Vacunas.Any())
+        {
+            <div class="card-z">
+                <h6 class="mb-2"><i class="bi bi-shield-plus text-rosa"></i> Vacunas a aplicar</h6>
+                @foreach (var v in form.Vacunas.ToList())
+                {
+                    <div class="item-lista">
+                        <div class="flex-grow-1">
+                            <input class="input-z mb-1" placeholder="Nombre (ej. Antirrábica)" @bind="v.Nombre" />
+                            <label class="texto-gris">Próxima dosis (opcional)</label>
+                            <input type="date" class="input-z" @bind="v.FechaProxima" />
+                        </div>
+                        <button class="btn-icono borrar" @onclick="() => form.Vacunas.Remove(v)"><i class="bi bi-trash"></i></button>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Recetas -->
+        @if (form.Recetas.Any())
+        {
+            <div class="card-z">
+                <h6 class="mb-2"><i class="bi bi-capsule text-rosa"></i> Recetas</h6>
+                @foreach (var r in form.Recetas.ToList())
+                {
+                    <div class="item-lista">
+                        <div class="flex-grow-1">
+                            <input class="input-z mb-1" placeholder="Medicamento y dosis" @bind="r.Medicamento" />
+                            <label class="texto-gris">Vencimiento (opcional)</label>
+                            <input type="date" class="input-z" @bind="r.FechaVencimiento" />
+                        </div>
+                        <button class="btn-icono borrar" @onclick="() => form.Recetas.Remove(r)"><i class="bi bi-trash"></i></button>
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="d-grid gap-2 mb-3">
+            <button class="btn-z-sec" @onclick="AgregarVacuna"><i class="bi bi-shield-plus"></i> Aplicar Vacuna</button>
+            <button class="btn-z-sec" @onclick="() => verTratamiento = true" disabled="@verTratamiento"><i class="bi bi-bandaid"></i> Agregar Tratamiento</button>
+            <button class="btn-z-sec" @onclick="() => form.Recetas.Add(new RecetaForm())"><i class="bi bi-file-earmark-medical"></i> Agregar Receta</button>
+        </div>
+
+        <Aviso Error="@errorGuardar" />
+        <button class="btn-z btn-bloque" @onclick="Finalizar" disabled="@guardando">
+            @if (guardando)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            Finalizar Consulta
+        </button>
+    }
+</div>
+
+
+<Exito Visible="exito != null" Titulo="@(exito ?? "")" Mensaje="@exitoMsg" OnCerrar="CerrarExito" />
+
+@code {
+    [Parameter] public int IdTurno { get; set; }
+
+    private Turno? turno;
+    private ConsultaForm form = new();
+    private bool cargando = true, guardando, verTratamiento;
+    private string? error, errorGuardar;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cargando = true;
+        turno = await Api.GetAsync<Turno>($"api/turnos/{IdTurno}");
+        error = Api.UltimoError;
+        if (turno != null && turno.Estado is not ("Aceptado" or "Pendiente"))
+            error = $"Este turno está {turno.Estado.ToLower()} y no se puede atender.";
+        form = new ConsultaForm { IdTurno = IdTurno };
+        cargando = false;
+    }
+
+    private void AgregarVacuna() => form.Vacunas.Add(new VacunaForm { FechaProxima = DateTime.Today.AddYears(1) });
+
+    private async Task Finalizar()
+    {
+        errorGuardar = null;
+        if (string.IsNullOrWhiteSpace(form.Diagnostico)) { errorGuardar = "Escribí el diagnóstico antes de finalizar."; return; }
+        if (form.Vacunas.Any(v => string.IsNullOrWhiteSpace(v.Nombre))) { errorGuardar = "Completá el nombre de cada vacuna o quitala."; return; }
+        if (form.Recetas.Any(r => string.IsNullOrWhiteSpace(r.Medicamento))) { errorGuardar = "Completá cada receta o quitala."; return; }
+
+        guardando = true;
+        var r = await Api.PostAsync("api/servicios", form);
+        guardando = false;
+
+        if (r.Ok) { exito = "¡Consulta finalizada!"; exitoMsg = $"Se guardó en el historial de {turno?.Mascota}."; }
+        else errorGuardar = r.Error;
+    }
+
+    private string? exito, exitoMsg;
+    private void CerrarExito() { exito = null; Navigation.NavigateTo("/doctor/agenda"); }
+}

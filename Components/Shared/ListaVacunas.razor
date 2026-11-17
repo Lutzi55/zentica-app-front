@@ -1,0 +1,39 @@
+@* Lista de vacunas: muestra la última dosis de cada una con su estado *@
+@if (!Vacunas.Any())
+{
+    <Vacio Icono="bi-shield-check" Texto="No hay vacunas registradas." />
+}
+@foreach (var v in Ultimas)
+{
+    var estado = Estado(v);
+    <div class="card-z d-flex align-items-center gap-3">
+        <div class="icono-redondo @(estado == "Al día" ? "" : "rosa")"><i class="bi bi-shield-plus"></i></div>
+        <div class="flex-grow-1 min-w-0">
+            <h6>@v.Nombre</h6>
+            <span class="texto-gris d-block">Aplicada el: @Formato.Fecha(v.FechaAplicacion)</span>
+            @if (v.FechaProxima.HasValue)
+            {
+                <span class="texto-gris d-block">Próxima dosis: @Formato.Fecha(v.FechaProxima)</span>
+            }
+        </div>
+        <span class="chip @(estado == "Al día" ? "chip-verde" : estado == "Vencida" ? "chip-rosa" : "chip-amarillo")">@estado</span>
+    </div>
+}
+
+@code {
+    [Parameter] public List<Vacuna> Vacunas { get; set; } = new();
+
+    // Última aplicación de cada vacuna; primero las pendientes
+    private IEnumerable<Vacuna> Ultimas => Vacunas
+        .GroupBy(v => v.Nombre.Trim().ToLower())
+        .Select(g => g.OrderByDescending(v => v.FechaAplicacion).First())
+        .OrderBy(v => Estado(v) == "Al día")
+        .ThenBy(v => v.FechaProxima ?? DateTime.MaxValue);
+
+    public static string Estado(Vacuna v)
+    {
+        if (!v.FechaProxima.HasValue) return "Al día";
+        if (v.FechaProxima.Value.Date < DateTime.Today) return "Vencida";
+        return v.FechaProxima.Value.Date <= DateTime.Today.AddDays(30) ? "Pendiente" : "Al día";
+    }
+}

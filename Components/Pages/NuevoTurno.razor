@@ -1,0 +1,187 @@
+﻿@page "/turnos/nuevo"
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Nuevo Turno" Volver="/turnos" />
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (!cargando)
+    {
+        @if (!mascotas.Any())
+        {
+            <Vacio Icono="bi-heart" Texto="Todavía no tenés mascotas registradas. Pedile al veterinario que la cargue en la clínica." />
+        }
+        else
+        {
+            <div class="card-z">
+                <div class="campo">
+                    <label>Mascota</label>
+                    <select class="input-z" @bind="form.IdMascota">
+                        @foreach (var m in mascotas)
+                        {
+                            <option value="@m.IdMascota">@m.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="campo">
+                    <label>Motivo</label>
+                    <select class="input-z" @bind="form.Motivo">
+                        @foreach (var mot in motivos)
+                        {
+                            <option value="@mot">@mot</option>
+                        }
+                    </select>
+                </div>
+                <div class="campo mb-0">
+                    <label>Veterinario</label>
+                    <select class="input-z" value="@form.IdDoctor" @onchange="CambiarDoctor">
+                        <option value="0">Elegí un veterinario</option>
+                        @foreach (var v in veterinarios)
+                        {
+                            <option value="@v.IdDoctor">@v.NombreCompleto · @v.Cargo</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (VetElegido is { } vet)
+            {
+                <div class="card-z contacto-vet">
+                    <div class="d-flex align-items-center gap-3">
+                        <Avatar Nombre="@vet.NombreCompleto" />
+                        <div class="flex-grow-1 min-w-0">
+                            <h6 class="text-truncate">@vet.NombreCompleto</h6>
+                            <span class="texto-gris">@vet.Cargo @(string.IsNullOrEmpty(vet.Telefono) ? "" : "· " + vet.Telefono)</span>
+                        </div>
+                    </div>
+                    <p class="texto-gris mt-2 mb-2">¿Tenés dudas antes de pedir el turno? Contactate con @vet.Nombre.</p>
+                    <ContactoBotones RutaChat="@($"/mensajes/{vet.IdUsuario}")" Telefono="@vet.Telefono" />
+                </div>
+            }
+
+            <Calendario Mes="mes" MesChanged="m => mes = m" Seleccionado="dia" OnDiaClick="ElegirDia" PermitirPasado="false" />
+
+            @if (dia.HasValue && form.IdDoctor > 0)
+            {
+                <div class="card-z">
+                    <h6 class="mb-1">@Formato.FechaLarga(dia.Value) - Horarios</h6>
+                    <p class="texto-gris mb-3">@horas.Count(h => h.Disponible) disponibles de @horas.Count</p>
+                    @if (cargandoHoras)
+                    {
+                        <Aviso Cargando="true" />
+                    }
+                    else if (!horas.Any(h => h.Disponible))
+                    {
+                        <p class="texto-gris mb-0">No quedan horarios libres ese día. Probá con otra fecha.</p>
+                    }
+                    else
+                    {
+                        <div class="horarios">
+                            @foreach (var h in horas)
+                            {
+                                <button class="@(!h.Disponible ? "ocupado" : hora == h.Hora ? "activo" : "")" disabled="@(!h.Disponible)"
+                                        title="@(h.Disponible ? "Disponible" : "Ocupado")" @onclick="() => hora = h.Hora">@h.Hora</button>
+                            }
+                        </div>
+                        <div class="leyenda"><span class="turquesa">Elegido</span><span class="verde">Libre</span><span class="gris">Ocupado</span></div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="texto-gris">Elegí un veterinario y un día para ver los horarios.</p>
+            }
+
+            <Aviso Error="@errorGuardar" />
+            <button class="btn-z btn-bloque" disabled="@(hora == null || guardando)" @onclick="Confirmar">
+                @if (guardando)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                Confirmar Turno
+            </button>
+            <p class="texto-gris text-center mt-2">El veterinario tiene que aceptar la solicitud.</p>
+        }
+    }
+</div>
+
+
+<Exito Visible="exito != null" Titulo="@(exito ?? "")" Mensaje="@exitoMsg" OnCerrar="CerrarExito" />
+
+@code {
+    [SupplyParameterFromQuery(Name = "mascota")] public int? IdMascotaQuery { get; set; }
+
+    private readonly string[] motivos = { "Control General", "Vacunación", "Consulta por síntomas", "Seguimiento de tratamiento", "Urgencia", "Otro" };
+    private List<Mascota> mascotas = new();
+    private List<Veterinario> veterinarios = new();
+    private List<Horario> horas = new();
+    private Veterinario? VetElegido => veterinarios.FirstOrDefault(v => v.IdDoctor == form.IdDoctor);
+    private TurnoForm form = new() { Motivo = "Control General" };
+    private DateTime mes = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime? dia;
+    private string? hora;
+    private bool cargando = true, cargandoHoras, guardando;
+    private string? error, errorGuardar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        mascotas = await Api.GetListaAsync<Mascota>("api/mascotas");
+        error = Api.UltimoError;
+        veterinarios = await Api.GetListaAsync<Veterinario>("api/doctores");
+        form.IdMascota = mascotas.Any(m => m.IdMascota == IdMascotaQuery) ? IdMascotaQuery!.Value : mascotas.FirstOrDefault()?.IdMascota ?? 0;
+        if (veterinarios.Count == 1) form.IdDoctor = veterinarios[0].IdDoctor;
+        cargando = false;
+    }
+
+    private async Task CambiarDoctor(ChangeEventArgs e)
+    {
+        form.IdDoctor = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        await CargarHoras();
+    }
+
+    private async Task ElegirDia(DateTime d)
+    {
+        dia = d;
+        await CargarHoras();
+    }
+
+    private async Task CargarHoras()
+    {
+        hora = null;
+        horas.Clear();
+        if (!dia.HasValue || form.IdDoctor == 0) return;
+        cargandoHoras = true;
+        horas = await Api.GetListaAsync<Horario>($"api/turnos/horarios?idDoctor={form.IdDoctor}&fecha={dia:yyyy-MM-dd}");
+        cargandoHoras = false;
+    }
+
+    private async Task Confirmar()
+    {
+        errorGuardar = null;
+        if (!dia.HasValue || hora == null) { errorGuardar = "Elegí día y horario."; return; }
+        var partes = hora.Split(':');
+        form.FechaYHora = dia.Value.Date.AddHours(int.Parse(partes[0])).AddMinutes(int.Parse(partes[1]));
+        form.EsUrgencia = form.Motivo == "Urgencia";
+
+        guardando = true;
+        var r = await Api.PostAsync("api/turnos", form);
+        guardando = false;
+
+        if (r.Ok)
+        {
+            var m = mascotas.FirstOrDefault(x => x.IdMascota == form.IdMascota)?.Nombre;
+            exito = "¡Turno solicitado!";
+            exitoMsg = $"{m} · {Formato.FechaLarga(form.FechaYHora)}, {Formato.Hora(form.FechaYHora)}. El veterinario te lo va a confirmar.";
+        }
+        else
+        {
+            errorGuardar = r.Error;
+            await CargarHoras(); // por si el horario se ocupó mientras tanto
+        }
+    }
+
+    private string? exito, exitoMsg;
+    private void CerrarExito() { exito = null; Navigation.NavigateTo("/turnos"); }
+}

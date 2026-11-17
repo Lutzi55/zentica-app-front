@@ -1,0 +1,87 @@
+@page "/mascotas/foto/{Id:int}"
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+@* El dueño solo puede cambiar la foto de perfil de su mascota (los datos los carga el veterinario) *@
+<div class="pantalla">
+    <Encabezado Titulo="Foto de perfil" Subtitulo="@mascota?.Nombre" Volver="@($"/mascotas/detalle/{Id}")" />
+
+    <Aviso Cargando="cargando" Error="@error" Ok="@ok" />
+
+    @if (mascota != null)
+    {
+        <div class="card-z text-center">
+            <FotoMascota Foto="@foto" Grande="true" Clase="mx-auto mb-3 d-block" />
+            <label class="subir-foto">
+                <i class="bi bi-camera-fill"></i> Elegir una foto
+                <InputFile accept="image/*" OnChange="ElegirFoto" />
+            </label>
+            <p class="texto-gris mt-2 mb-0">JPG o PNG. Se achica automáticamente.</p>
+        </div>
+
+        <div class="d-grid gap-2">
+            <button class="btn-z" disabled="@(guardando || foto == mascota.Foto)" @onclick="() => Guardar(foto)">
+                @if (guardando)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                Guardar foto
+            </button>
+            @if (!string.IsNullOrEmpty(mascota.Foto))
+            {
+                <button class="btn-z-rosa" disabled="@guardando" @onclick="() => Guardar(null)"><i class="bi bi-trash"></i> Quitar foto</button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private Mascota? mascota;
+    private string? foto;
+    private bool cargando = true, guardando;
+    private string? error, ok;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cargando = true;
+        mascota = await Api.GetAsync<Mascota>($"api/mascotas/{Id}");
+        error = Api.UltimoError;
+        foto = mascota?.Foto;
+        cargando = false;
+    }
+
+    private async Task ElegirFoto(InputFileChangeEventArgs e)
+    {
+        error = null;
+        ok = null;
+        try
+        {
+            // Se achica a 600x600 como máximo para que pese poco
+            IBrowserFile archivo;
+            try { archivo = await e.File.RequestImageFileAsync("image/jpeg", 600, 600); }
+            catch { archivo = e.File; }
+
+            const long maximo = 1024 * 1024; // 1 MB
+            if (archivo.Size > maximo) { error = "La imagen es muy pesada. Probá con otra más chica."; return; }
+
+            using var ms = new MemoryStream();
+            await archivo.OpenReadStream(maximo).CopyToAsync(ms);
+            foto = $"data:{archivo.ContentType};base64,{Convert.ToBase64String(ms.ToArray())}";
+        }
+        catch (Exception ex)
+        {
+            error = "No se pudo leer la imagen: " + ex.Message;
+        }
+    }
+
+    private async Task Guardar(string? nuevaFoto)
+    {
+        guardando = true;
+        var r = await Api.PutAsync($"api/mascotas/{Id}/foto", new { foto = nuevaFoto });
+        guardando = false;
+        if (!r.Ok) { error = r.Error; return; }
+        Navigation.NavigateTo($"/mascotas/detalle/{Id}");
+    }
+}

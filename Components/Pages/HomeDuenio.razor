@@ -1,0 +1,106 @@
+﻿@page "/home"
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="home">
+    <div class="encabezado">
+        <div>
+            <small>Bienvenido/a de nuevo 👋</small>
+            <h2>@Api.Sesion?.Nombre</h2>
+        </div>
+        <button class="avatar" @onclick='() => Navigation.NavigateTo("/perfil")' title="Mi perfil">@Iniciales</button>
+    </div>
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (!cargando)
+    {
+        @if (proximo != null)
+        {
+            <div class="banner">
+                <div class="d-flex justify-content-between align-items-start">
+                    <span class="chip">Próximo turno · @proximo.Estado</span>
+                    <i class="bi bi-calendar-event fs-4"></i>
+                </div>
+                <h6 class="fw-bold mt-2 mb-0">@(proximo.Motivo ?? "Consulta") - @proximo.Mascota</h6>
+                <p><i class="bi bi-clock me-1"></i>@Formato.FechaLarga(proximo.FechaYHora), @Formato.Hora(proximo.FechaYHora)</p>
+                <p><i class="bi bi-person-badge me-1"></i>@proximo.Doctor</p>
+                <button class="btn btn-sm btn-light fw-bold rounded-pill mt-2" @onclick='() => Navigation.NavigateTo("/turnos")'>Ver Detalles</button>
+            </div>
+        }
+        else
+        {
+            <div class="card-z d-flex align-items-center gap-3" @onclick='() => Navigation.NavigateTo("/turnos/nuevo")'>
+                <div class="icono-redondo"><i class="bi bi-calendar-plus"></i></div>
+                <div class="flex-grow-1"><h6>No tenés turnos próximos</h6><span class="texto-gris">Tocá para pedir uno</span></div>
+                <i class="bi bi-chevron-right flecha"></i>
+            </div>
+        }
+
+        <div class="titulo-seccion">
+            <h6>Mis Mascotas</h6>
+            <a @onclick='() => Navigation.NavigateTo("/mascotas")'>Ver todas</a>
+        </div>
+
+        @if (!mascotas.Any())
+        {
+            <Vacio Icono="bi-heart" Texto="Todavía no tenés mascotas registradas. Las carga el veterinario en la clínica." />
+        }
+        <div class="grilla-2">
+            @foreach (var m in mascotas.Take(4))
+            {
+                <div class="card-z" @onclick='() => Navigation.NavigateTo($"/mascotas/detalle/{m.IdMascota}")'>
+                    <FotoMascota Foto="@m.Foto" Rosa="m.VacunaPendiente" Clase="mx-auto mb-2 d-block" />
+                    <h6>@m.Nombre</h6>
+                    <span class="texto-gris d-block mb-2">@m.Raza • @Formato.Edad(m.FechaNacimiento)</span>
+                    <span class="chip @(m.VacunaPendiente ? "chip-rosa" : "chip-verde")">@(m.VacunaPendiente ? "Vacuna Pendiente" : "Saludable")</span>
+                </div>
+            }
+        </div>
+        @if (mascotas.Count > 4)
+        {
+            <div class="text-center mt-2"><a class="link-z" @onclick='() => Navigation.NavigateTo("/mascotas")'>Ver todas (@mascotas.Count)</a></div>
+        }
+
+        <h6 class="fw-bold mt-4 mb-3">Acciones Rápidas</h6>
+        <div class="grilla-3">
+            <button class="accion" @onclick='() => Navigation.NavigateTo("/turnos/nuevo")'><i class="bi bi-calendar-plus"></i>Nuevo Turno</button>
+            <button class="accion" @onclick='() => Navigation.NavigateTo("/mensajes")'>
+                <i class="bi bi-chat-dots"></i>Mensajes
+                @if (noLeidos > 0)
+                {
+                    <span class="badge-no-leidos flotante">@noLeidos</span>
+                }
+            </button>
+            <button class="accion" @onclick='() => Navigation.NavigateTo("/veterinarios/turno")'><i class="bi bi-people text-rosa"></i>Doctores</button>
+        </div>
+    }
+</div>
+
+@code {
+    private List<Mascota> mascotas = new();
+    private Turno? proximo;
+    private bool cargando = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        mascotas = await Api.GetListaAsync<Mascota>("api/mascotas");
+        error = Api.UltimoError;
+        var turnos = await Api.GetListaAsync<Turno>("api/turnos");
+        proximo = turnos.Where(t => t.FechaYHora >= DateTime.Now && t.Estado is "Aceptado" or "Pendiente")
+                        .OrderBy(t => t.FechaYHora).FirstOrDefault();
+        noLeidos = await Api.GetAsync<int>("api/mensajes/no-leidos");
+        cargando = false;
+    }
+
+    private int noLeidos;
+
+    private void CerrarSesion()
+    {
+        Api.CerrarSesion();
+        Navigation.NavigateTo("/login");
+    }
+
+    private string Iniciales => string.Concat((Api.Sesion?.Nombre ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpper(x[0])));
+}

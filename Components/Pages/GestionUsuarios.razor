@@ -1,0 +1,288 @@
+﻿@page "/admin/usuarios"
+@layout LayoutAdmin
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Gestión: Usuarios" Subtitulo="Administración" Volver="/admin/home">
+        <button class="btn-z" @onclick="Nuevo"><i class="bi bi-plus-lg"></i> Nuevo</button>
+    </Encabezado>
+
+    <div class="buscador">
+        <i class="bi bi-search"></i>
+        <input class="input-z" placeholder="Buscar por nombre, email o DNI" @bind="buscar" @bind:event="oninput" />
+    </div>
+
+    <div class="pills">
+        @foreach (var f in filtros)
+        {
+            <button class="pill @(filtro == f ? "activa" : "")" @onclick="() => filtro = f">@f</button>
+        }
+    </div>
+
+    <Aviso Cargando="cargando" Error="@error" Ok="@ok" />
+
+    @if (!cargando)
+    {
+        @if (!Filtrados.Any())
+        {
+            <Vacio Icono="bi-people" Texto="No hay usuarios que coincidan." />
+        }
+        @foreach (var u in Filtrados)
+        {
+            <div class="card-z">
+                <div class="card-cab" @onclick="() => Alternar(u.IdUsuario)">
+                    <Avatar Nombre="@u.Nombre" Inactivo="!u.Activo" />
+                    <div class="flex-grow-1 min-w-0">
+                        <h6 class="text-truncate">@u.Nombre</h6>
+                        <span class="texto-gris">@u.Rol</span>
+                        @if (!u.Activo)
+                        {
+                            <span class="chip chip-rosa ms-1">Dado de baja</span>
+                        }
+                    </div>
+                    <button class="btn-icono editar" @onclick="() => Editar(u)" @onclick:stopPropagation="true" title="Editar"><i class="bi bi-pencil"></i></button>
+                    @if (u.Activo)
+                    {
+                        <button class="btn-icono borrar" @onclick="() => PedirBaja(u)" @onclick:stopPropagation="true" title="Dar de baja"><i class="bi bi-person-x"></i></button>
+                    }
+                    else
+                    {
+                        <button class="btn-icono editar" @onclick="() => Reactivar(u)" @onclick:stopPropagation="true" title="Reactivar"><i class="bi bi-arrow-counterclockwise"></i></button>
+                    }
+                    <i class="bi @(abiertos.Contains(u.IdUsuario) ? "bi-chevron-up" : "bi-chevron-down") texto-gris"></i>
+                </div>
+
+                @if (abiertos.Contains(u.IdUsuario))
+                {
+                    <div class="card-detalle">
+                        <div class="fila-dato"><span>ID</span><span>#@u.IdUsuario</span></div>
+                        <div class="fila-dato"><span>Email</span><span>@u.Email</span></div>
+                        <div class="fila-dato"><span>Teléfono</span><span>@(u.Telefono ?? "-")</span></div>
+                        @if (u.Rol == "Dueño")
+                        {
+                            <div class="fila-dato"><span>DNI</span><span>@(string.IsNullOrEmpty(u.Dni) ? "-" : u.Dni)</span></div>
+                            <div class="fila-dato"><span>Dirección</span><span>@(u.Direccion ?? "-")</span></div>
+                            <div class="fila-dato"><span>Zona</span><span>@(u.Zona ?? "-")</span></div>
+                            <div class="fila-dato"><span>Mascotas vinculadas</span><span>@(u.Mascotas.Any() ? string.Join(", ", u.Mascotas) : "Ninguna")</span></div>
+                        }
+                        @if (u.Rol == "Veterinario")
+                        {
+                            <div class="fila-dato"><span>Matrícula</span><span>@(string.IsNullOrEmpty(u.Matricula) ? "-" : u.Matricula)</span></div>
+                            <div class="fila-dato"><span>Cargo</span><span>@(u.Cargo ?? "-")</span></div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<Hoja Visible="formVisible" Titulo="@(editandoId == null ? "Nuevo usuario" : "Editar usuario")" OnCerrar="() => formVisible = false">
+    <EditForm Model="form" OnValidSubmit="Guardar">
+        <div class="campo">
+            <label>Nombre completo *</label>
+            <InputText class="input-z" @bind-Value="form.Nombre" />
+        </div>
+        <div class="campo">
+            <label>Email *</label>
+            <InputText type="email" class="input-z" @bind-Value="form.Email" />
+        </div>
+        <div class="campo">
+            <label>@(editandoId == null ? "Contraseña * (mínimo 6)" : "Nueva contraseña (dejar vacío para no cambiarla)")</label>
+            <InputText type="password" class="input-z" @bind-Value="form.Password" />
+        </div>
+        <div class="campo">
+            <label>Teléfono</label>
+            <InputText class="input-z" @bind-Value="form.Telefono" />
+        </div>
+        <div class="campo">
+            <label>Rol *</label>
+            <InputSelect class="input-z" @bind-Value="form.IdRol">
+                <option value="0">Elegí un rol</option>
+                @foreach (var r in roles)
+                {
+                    <option value="@r.Id">@r.Nombre</option>
+                }
+            </InputSelect>
+        </div>
+
+        @if (RolElegido == "Dueño")
+        {
+            <div class="campo">
+                <label>DNI</label>
+                <InputText class="input-z" @bind-Value="form.Dni" />
+            </div>
+            <div class="campo">
+                <label>Dirección</label>
+                <InputText class="input-z" @bind-Value="form.Direccion" />
+            </div>
+            <div class="campo">
+                <label>Zona</label>
+                <InputText class="input-z" @bind-Value="form.Zona" />
+            </div>
+        }
+        @if (RolElegido == "Veterinario")
+        {
+            <div class="campo">
+                <label>Matrícula</label>
+                <InputText class="input-z" @bind-Value="form.Matricula" />
+            </div>
+            <div class="campo">
+                <label>Cargo / especialidad</label>
+                <InputText class="input-z" @bind-Value="form.Cargo" />
+            </div>
+        }
+
+        <Aviso Error="@errorForm" />
+        <button type="submit" class="btn-z btn-bloque" disabled="@guardando">
+            @if (guardando)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            Guardar
+        </button>
+    </EditForm>
+</Hoja>
+
+<Confirmar Visible="aBorrar != null" Titulo="Dar de baja"
+           Mensaje="@($"¿Dar de baja a {aBorrar?.Nombre}? No podrá iniciar sesión. Sus datos y mascotas se conservan y podés reactivarlo.")"
+           TextoBoton="Dar de baja" Procesando="guardando" OnConfirmar="ConfirmarBaja" OnCancelar="() => aBorrar = null" />
+
+
+<Exito Visible="exito != null" Titulo="@(exito ?? "")" Mensaje="@exitoMsg" OnCerrar="CerrarExito" />
+
+@code {
+    private List<Usuario> usuarios = new();
+    private List<Rol> roles = new();
+    private readonly string[] filtros = { "Todos", "Dueños", "Veterinarios", "Administradores", "Dados de baja" };
+    private string filtro = "Todos";
+    private string buscar = string.Empty;
+    private readonly HashSet<int> abiertos = new();
+
+    private bool cargando = true, guardando, formVisible;
+    private string? error, ok, errorForm;
+
+    private UsuarioForm form = new();
+    private int? editandoId;
+    private Usuario? aBorrar;
+
+    private string? RolElegido => roles.FirstOrDefault(r => r.Id == form.IdRol)?.Nombre;
+
+    private IEnumerable<Usuario> Filtrados
+    {
+        get
+        {
+            var q = usuarios.AsEnumerable();
+            q = filtro switch
+            {
+                "Dueños" => q.Where(u => u.Rol == "Dueño" && u.Activo),
+                "Veterinarios" => q.Where(u => u.Rol == "Veterinario" && u.Activo),
+                "Administradores" => q.Where(u => u.Rol == "Administrador" && u.Activo),
+                "Dados de baja" => q.Where(u => !u.Activo),
+                _ => q
+            };
+            if (!string.IsNullOrWhiteSpace(buscar))
+            {
+                var b = buscar.Trim().ToLower();
+                q = q.Where(u => u.Nombre.ToLower().Contains(b) || u.Email.ToLower().Contains(b) || (u.Dni ?? "").Contains(b));
+            }
+            return q;
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        roles = await Api.GetListaAsync<Rol>("api/roles");
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        usuarios = await Api.GetListaAsync<Usuario>("api/usuarios");
+        error = Api.UltimoError;
+        cargando = false;
+    }
+
+    private void Alternar(int id)
+    {
+        if (!abiertos.Remove(id)) abiertos.Add(id);
+    }
+
+    private static string IconoRol(string rol) => rol switch
+    {
+        "Administrador" => "bi-shield-lock-fill",
+        "Veterinario" => "bi-heart-pulse-fill",
+        _ => "bi-person-fill"
+    };
+
+    private void Nuevo()
+    {
+        editandoId = null;
+        form = new UsuarioForm { IdRol = roles.FirstOrDefault(r => r.Nombre == "Dueño")?.Id ?? 0 };
+        errorForm = null;
+        formVisible = true;
+    }
+
+    private void Editar(Usuario u)
+    {
+        editandoId = u.IdUsuario;
+        form = new UsuarioForm
+        {
+            Nombre = u.Nombre, Email = u.Email, Telefono = u.Telefono, IdRol = u.IdRol,
+            Dni = u.Dni, Direccion = u.Direccion, Zona = u.Zona, Matricula = u.Matricula, Cargo = u.Cargo
+        };
+        errorForm = null;
+        formVisible = true;
+    }
+
+    private async Task Guardar()
+    {
+        errorForm = null;
+        if (string.IsNullOrWhiteSpace(form.Nombre) || string.IsNullOrWhiteSpace(form.Email)) { errorForm = "Completá nombre y email."; return; }
+        if (form.IdRol == 0) { errorForm = "Elegí un rol."; return; }
+        if (editandoId == null && (form.Password?.Length ?? 0) < 6) { errorForm = "La contraseña debe tener al menos 6 caracteres."; return; }
+
+        guardando = true;
+        var r = editandoId == null
+            ? await Api.PostAsync("api/usuarios", form)
+            : await Api.PutAsync($"api/usuarios/{editandoId}", form);
+        guardando = false;
+
+        if (!r.Ok) { errorForm = r.Error; return; }
+        formVisible = false;
+        await Cargar();
+        exito = editandoId == null ? "¡Usuario creado!" : "¡Cambios guardados!";
+        exitoMsg = editandoId == null ? $"{form.Nombre} ya puede iniciar sesión con su email." : null;
+    }
+
+    private void PedirBaja(Usuario u) => aBorrar = u;
+
+    private async Task ConfirmarBaja()
+    {
+        if (aBorrar == null) return;
+        guardando = true;
+        var nombre = aBorrar.Nombre;
+        var r = await Api.DeleteAsync($"api/usuarios/{aBorrar.IdUsuario}");
+        guardando = false;
+        aBorrar = null;
+        await Cargar();
+        Resultado(r, $"{nombre} fue dado de baja.");
+    }
+
+    private async Task Reactivar(Usuario u)
+    {
+        var r = await Api.PatchAsync<object?>($"api/usuarios/{u.IdUsuario}/reactivar", null);
+        await Cargar();
+        Resultado(r, $"{u.Nombre} fue reactivado.");
+    }
+
+    private void Resultado(Respuesta r, string mensajeOk)
+    {
+        if (r.Ok) ok = mensajeOk;
+        else { error = r.Error; ok = null; }
+    }
+
+    private string? exito, exitoMsg;
+    private void CerrarExito() => exito = null;
+}

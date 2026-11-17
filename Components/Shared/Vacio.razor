@@ -1,0 +1,9 @@
+<div class="vacio">
+    <i class="bi @Icono"></i>
+    @Texto
+</div>
+
+@code {
+    [Parameter] public string Texto { get; set; } = "No hay datos para mostrar.";
+    [Parameter] public string Icono { get; set; } = "bi-inbox";
+}

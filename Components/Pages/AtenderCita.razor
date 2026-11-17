@@ -1,0 +1,71 @@
+﻿@page "/doctor/atender/{IdTurno:int}"
+@layout LayoutDoctor
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Atender Cita" Volver="/doctor/agenda" />
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (turno != null && mascota != null)
+    {
+        <div class="card-z text-center">
+            <FotoMascota Foto="@mascota.Foto" Grande="true" Clase="mx-auto mb-2 d-block" />
+            <h5 class="fw-bold mb-0">@mascota.Nombre.ToUpper()</h5>
+            <span class="texto-gris">@mascota.Especie · @mascota.Raza</span>
+        </div>
+
+        <div class="card-z">
+            <div class="fila-dato"><span>Sexo</span><span>@(mascota.Sexo ?? "-")</span></div>
+            <div class="fila-dato"><span>Edad</span><span>@Formato.Edad(mascota.FechaNacimiento)</span></div>
+            <div class="fila-dato"><span>Peso</span><span>@Formato.Peso(mascota.Peso)</span></div>
+            <div class="fila-dato"><span>Color</span><span>@(mascota.Color ?? "-")</span></div>
+            <div class="fila-dato"><span>Dueño</span><span>@mascota.Duenio</span></div>
+            <div class="fila-dato"><span>Teléfono</span><span>@(mascota.DuenioTelefono ?? "-")</span></div>
+            <div class="fila-dato"><span>Turno</span><span>@Formato.FechaHora(turno.FechaYHora)</span></div>
+            <div class="fila-dato"><span>Motivo del turno</span><span>@(turno.Motivo ?? "-")</span></div>
+            <div class="fila-dato"><span>Estado</span><span class="@Formato.ClaseEstado(turno.Estado)">@turno.Estado</span></div>
+        </div>
+
+        @if (mascota.VacunaPendiente)
+        {
+            <div class="aviso error"><i class="bi bi-exclamation-triangle-fill"></i><span>Tiene vacunas pendientes o por vencer.</span></div>
+        }
+
+        <div class="card-z">
+            <p class="texto-gris mb-2">Contactar a @mascota.Duenio</p>
+            <ContactoBotones RutaChat="@($"/doctor/mensajes/{mascota.IdUsuario}")" Telefono="@mascota.DuenioTelefono" />
+        </div>
+
+        <div class="d-grid gap-2">
+            <button class="btn-z-sec" @onclick='() => Navigation.NavigateTo($"/doctor/historial/{mascota.IdMascota}")'>
+                <i class="bi bi-journal-medical"></i> Ver Historial Completo
+            </button>
+            @if (turno.Estado is "Aceptado" or "Pendiente")
+            {
+                <button class="btn-z" @onclick='() => Navigation.NavigateTo($"/doctor/diagnostico/{turno.IdTurno}")'>
+                    <i class="bi bi-clipboard2-plus"></i> Registrar Diagnóstico
+                </button>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int IdTurno { get; set; }
+
+    private Turno? turno;
+    private Mascota? mascota;
+    private bool cargando = true;
+    private string? error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cargando = true;
+        turno = await Api.GetAsync<Turno>($"api/turnos/{IdTurno}");
+        if (turno != null) mascota = await Api.GetAsync<Mascota>($"api/mascotas/{turno.IdMascota}");
+        error = Api.UltimoError;
+        cargando = false;
+    }
+}

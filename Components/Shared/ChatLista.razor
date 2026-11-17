@@ -1,0 +1,85 @@
+@inject ApiService Api
+@inject NavigationManager Nav
+
+@* Lista de chats abiertos + contactos para iniciar uno nuevo *@
+<div class="pantalla">
+    <Encabezado Titulo="Mensajes" Volver="@Inicio" />
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (!cargando)
+    {
+        @if (conversaciones.Any())
+        {
+            <div class="titulo-seccion"><h6>Conversaciones</h6></div>
+            @foreach (var c in conversaciones)
+            {
+                <div class="card-z card-cab chat-item" @onclick="() => Abrir(c.IdUsuario)">
+                    <Avatar Nombre="@c.Nombre" />
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="d-flex justify-content-between gap-2">
+                            <h6 class="text-truncate">@c.Nombre</h6>
+                            <span class="texto-gris chat-hora">@HoraCorta(c.FechaUltimo)</span>
+                        </div>
+                        <div class="d-flex justify-content-between gap-2">
+                            <span class="texto-gris text-truncate">@c.UltimoMensaje</span>
+                            @if (c.NoLeidos > 0)
+                            {
+                                <span class="badge-no-leidos">@c.NoLeidos</span>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+
+        <div class="titulo-seccion"><h6>@(Api.EsDuenio ? "Veterinarios" : "Dueños")</h6></div>
+        <div class="buscador">
+            <i class="bi bi-search"></i>
+            <input class="input-z" placeholder="Buscar por nombre" @bind="buscar" @bind:event="oninput" />
+        </div>
+        @if (!ContactosFiltrados.Any())
+        {
+            <Vacio Icono="bi-person" Texto="No hay contactos para mostrar." />
+        }
+        @foreach (var c in ContactosFiltrados)
+        {
+            <div class="card-z card-cab" @onclick="() => Abrir(c.IdUsuario)">
+                <Avatar Nombre="@c.Nombre" />
+                <div class="flex-grow-1 min-w-0">
+                    <h6 class="text-truncate">@c.Nombre</h6>
+                    <span class="texto-gris text-truncate d-block">@c.Detalle</span>
+                </div>
+                <i class="bi bi-chat-dots text-verde fs-5"></i>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private List<Conversacion> conversaciones = new();
+    private List<Conversacion> contactos = new();
+    private string buscar = string.Empty;
+    private bool cargando = true;
+    private string? error;
+
+    private string Base => Api.EsVeterinario ? "/doctor/mensajes" : "/mensajes";
+    private string Inicio => Api.EsVeterinario ? "/doctor/home" : "/home";
+
+    private IEnumerable<Conversacion> ContactosFiltrados => contactos
+        .Where(c => conversaciones.All(x => x.IdUsuario != c.IdUsuario))
+        .Where(c => string.IsNullOrWhiteSpace(buscar) || c.Nombre.Contains(buscar.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        conversaciones = await Api.GetListaAsync<Conversacion>("api/mensajes/conversaciones");
+        error = Api.UltimoError;
+        contactos = await Api.GetListaAsync<Conversacion>("api/mensajes/contactos");
+        cargando = false;
+    }
+
+    private void Abrir(int idUsuario) => Nav.NavigateTo($"{Base}/{idUsuario}");
+
+    private static string HoraCorta(DateTime? f) =>
+        f == null ? "" : f.Value.Date == DateTime.Today ? f.Value.ToString("HH:mm") : f.Value.ToString("dd/MM");
+}

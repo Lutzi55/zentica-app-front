@@ -1,0 +1,16 @@
+@* Foto de perfil de la mascota; si no tiene, muestra el ícono de corazón *@
+@if (!string.IsNullOrEmpty(Foto))
+{
+    <img src="@Foto" alt="Foto" class="foto-mascota @(Grande ? "grande" : "") @Clase" />
+}
+else
+{
+    <div class="icono-redondo @(Grande ? "grande" : "") @(Rosa ? "rosa" : "") @Clase"><i class="bi bi-heart-fill"></i></div>
+}
+
+@code {
+    [Parameter] public string? Foto { get; set; }
+    [Parameter] public bool Grande { get; set; }
+    [Parameter] public bool Rosa { get; set; }
+    [Parameter] public string? Clase { get; set; }
+}

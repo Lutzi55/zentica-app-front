@@ -1,0 +1,23 @@
+@* Título de pantalla con botón volver y acciones opcionales a la derecha *@
+<div class="cabecera">
+    @if (MostrarVolver)
+    {
+        <BotonVolver Ruta="@Volver" />
+    }
+    <div class="titulos">
+        @if (!string.IsNullOrEmpty(Subtitulo))
+        {
+            <small>@Subtitulo</small>
+        }
+        <h5>@Titulo</h5>
+    </div>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public string? Subtitulo { get; set; }
+    [Parameter] public string? Volver { get; set; }
+    [Parameter] public bool MostrarVolver { get; set; } = true;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

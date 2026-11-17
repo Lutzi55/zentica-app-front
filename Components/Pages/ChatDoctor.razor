@@ -1,0 +1,8 @@
+@page "/doctor/mensajes/{IdUsuario:int}"
+@layout LayoutDoctor
+
+<ChatConversacion IdUsuario="IdUsuario" ListaRuta="/doctor/mensajes" />
+
+@code {
+    [Parameter] public int IdUsuario { get; set; }
+}

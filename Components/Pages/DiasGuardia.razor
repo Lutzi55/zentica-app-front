@@ -1,0 +1,8 @@
+@page "/doctor/guardias"
+@layout LayoutDoctor
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Veterinario de Turno" Subtitulo="Días de guardia" Volver="/doctor/home" />
+    <CalendarioGuardias IdDoctorInicial="Api.Sesion?.IdDoctor" />
+</div>

@@ -1,0 +1,23 @@
+@* Panel que sube desde abajo (formularios). Centro = true lo muestra como diálogo. *@
+@if (Visible)
+{
+    <div class="hoja-fondo" @onclick="Cerrar">
+        <div class="hoja @(Centro ? "centro" : "")" @onclick:stopPropagation="true">
+            <div class="hoja-cab">
+                <h6>@Titulo</h6>
+                <button type="button" class="btn-icono" @onclick="Cerrar"><i class="bi bi-x-lg"></i></button>
+            </div>
+            @ChildContent
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Titulo { get; set; } = string.Empty;
+    [Parameter] public bool Centro { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public EventCallback OnCerrar { get; set; }
+
+    private Task Cerrar() => OnCerrar.InvokeAsync();
+}

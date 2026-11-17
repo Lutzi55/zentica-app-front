@@ -1,0 +1,139 @@
+﻿@page "/admin/guardias"
+@layout LayoutAdmin
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Gestión: Veterinario de Turno" Subtitulo="Guardias" Volver="/admin/home" />
+
+    <div class="card-z">
+        <div class="campo">
+            <label>Seleccionar veterinario</label>
+            <select class="input-z" @bind="idDoctor">
+                <option value="0">Elegí un veterinario</option>
+                @foreach (var v in veterinarios)
+                {
+                    <option value="@v.IdDoctor">@v.NombreCompleto</option>
+                }
+            </select>
+        </div>
+        <div class="fila-botones">
+            <div class="campo mb-0">
+                <label>Desde</label>
+                <input type="time" class="input-z" @bind="horaInicio" />
+            </div>
+            <div class="campo mb-0">
+                <label>Hasta</label>
+                <input type="time" class="input-z" @bind="horaFin" />
+            </div>
+        </div>
+        @if (horaFin < horaInicio)
+        {
+            <p class="texto-gris mt-2 mb-0"><i class="bi bi-moon-stars"></i> Guardia nocturna: termina al día siguiente.</p>
+        }
+    </div>
+
+    <p class="texto-gris">Tocá un día para asignar o quitar la guardia del veterinario elegido.</p>
+
+    <Calendario Mes="mes" MesChanged="CambiarMes" ClaseDia="ClaseDia" OnDiaClick="TocarDia">
+        <div class="leyenda">
+            <span>Veterinario elegido</span>
+            <span class="verde">Otro veterinario</span>
+        </div>
+    </Calendario>
+
+    <Aviso Cargando="cargando" Error="@error" Ok="@ok" />
+
+    <div class="titulo-seccion"><h6>Guardias de @Formato.Mes(mes)</h6><span class="texto-gris">@guardias.Count</span></div>
+
+    @if (!cargando && !guardias.Any())
+    {
+        <Vacio Icono="bi-calendar2-x" Texto="No hay guardias asignadas este mes." />
+    }
+    @foreach (var g in guardias)
+    {
+        <div class="card-z d-flex align-items-center gap-3">
+            <div class="icono-redondo @(g.IdDoctor == idDoctor ? "rosa" : "")"><i class="bi bi-calendar2-week-fill"></i></div>
+            <div class="flex-grow-1">
+                <h6>@Formato.FechaLarga(g.Fecha)</h6>
+                <span class="texto-gris">@g.Doctor · @Formato.Horario(g.HoraInicio, g.HoraFin)</span>
+            </div>
+            <button class="btn-icono borrar" @onclick="() => aBorrar = g" title="Quitar guardia"><i class="bi bi-trash"></i></button>
+        </div>
+    }
+</div>
+
+<Confirmar Visible="aBorrar != null" Titulo="Quitar guardia"
+           Mensaje="@($"¿Quitar la guardia de {aBorrar?.Doctor} del {(aBorrar != null ? Formato.Fecha(aBorrar.Fecha) : "")}?")"
+           TextoBoton="Quitar" Procesando="procesando" OnConfirmar="ConfirmarBorrado" OnCancelar="() => aBorrar = null" />
+
+@code {
+    private List<Veterinario> veterinarios = new();
+    private List<Guardia> guardias = new();
+    private DateTime mes = new(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private int idDoctor;
+    private TimeOnly horaInicio = new(8, 0), horaFin = new(20, 0);
+
+    private bool cargando = true, procesando;
+    private string? error, ok;
+    private Guardia? aBorrar;
+
+    protected override async Task OnInitializedAsync()
+    {
+        veterinarios = await Api.GetListaAsync<Veterinario>("api/doctores");
+        idDoctor = veterinarios.FirstOrDefault()?.IdDoctor ?? 0;
+        await Cargar();
+    }
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        guardias = await Api.GetListaAsync<Guardia>($"api/guardias?anio={mes.Year}&mes={mes.Month}");
+        error = Api.UltimoError;
+        cargando = false;
+    }
+
+    private async Task CambiarMes(DateTime nuevo)
+    {
+        mes = nuevo;
+        ok = null;
+        await Cargar();
+    }
+
+    private string? ClaseDia(DateTime dia)
+    {
+        var delDia = guardias.Where(g => g.Fecha.Date == dia).ToList();
+        if (delDia.Any(g => g.IdDoctor == idDoctor)) return "marcado";
+        return delDia.Any() ? "marcado-verde" : null;
+    }
+
+    private async Task TocarDia(DateTime dia)
+    {
+        ok = null;
+        error = null;
+        if (idDoctor == 0) { error = "Primero elegí un veterinario."; return; }
+
+        var existente = guardias.FirstOrDefault(g => g.Fecha.Date == dia && g.IdDoctor == idDoctor);
+        if (existente != null) { aBorrar = existente; return; }
+
+        // Si "hasta" es menor que "desde" se toma como guardia nocturna (termina al día siguiente)
+        if (horaFin == horaInicio) { error = "La hora de inicio y la de fin no pueden ser iguales."; return; }
+
+        procesando = true;
+        var r = await Api.PostAsync("api/guardias", new GuardiaForm { Fecha = dia, HoraInicio = horaInicio, HoraFin = horaFin, IdDoctor = idDoctor });
+        procesando = false;
+        await Cargar();
+        if (r.Ok) ok = $"Guardia asignada el {Formato.Fecha(dia)}.";
+        else error = r.Error;
+    }
+
+    private async Task ConfirmarBorrado()
+    {
+        if (aBorrar == null) return;
+        procesando = true;
+        var r = await Api.DeleteAsync($"api/guardias/{aBorrar.IdGuardia}");
+        procesando = false;
+        aBorrar = null;
+        await Cargar();
+        if (r.Ok) ok = "Guardia quitada."; else error = r.Error;
+    }
+}

@@ -1,0 +1,27 @@
+@* Círculo con las iniciales de la persona (color según el nombre, dentro de la paleta) *@
+<div class="avatar-ini @Color @(Grande ? "grande" : "") @(Inactivo ? "inactivo" : "")">@Iniciales</div>
+
+@code {
+    [Parameter] public string Nombre { get; set; } = string.Empty;
+    [Parameter] public bool Grande { get; set; }
+    [Parameter] public bool Inactivo { get; set; }
+
+    private string Iniciales
+    {
+        get
+        {
+            var partes = Nombre.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+            if (partes.Length == 0) return "?";
+            var ini = partes[0][..1] + (partes.Length > 1 ? partes[^1][..1] : "");
+            return ini.ToUpper();
+        }
+    }
+
+    // Tres tonos de la paleta, elegidos siempre igual para el mismo nombre
+    private string Color => (Math.Abs(Nombre.Sum(c => c)) % 3) switch
+    {
+        0 => "tono-verde",
+        1 => "tono-agua",
+        _ => "tono-rosa"
+    };
+}

@@ -1,0 +1,13 @@
+@page "/doctor/mascotas/nuevo"
+@page "/doctor/mascotas/editar/{Id:int}"
+@layout LayoutDoctor
+@inject NavigationManager Navigation
+
+<div class="pantalla">
+    <Encabezado Titulo="@(Id == null ? "Registrar Nueva Mascota" : "Editar Mascota")" Volver="/doctor/pacientes" />
+    <FormMascota IdMascota="Id" ElegirDuenio="true" OnGuardado='() => Navigation.NavigateTo("/doctor/pacientes")' />
+</div>
+
+@code {
+    [Parameter] public int? Id { get; set; }
+}

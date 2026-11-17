@@ -1,0 +1,179 @@
+@inject ApiService Api
+
+@* Formulario de alta/edición de mascota. Lo usan el veterinario (elige dueño) y el dueño. *@
+<Aviso Cargando="cargando" Error="@error" />
+
+@if (!cargando)
+{
+    <EditForm Model="form" OnValidSubmit="Guardar">
+        @if (ElegirDuenio && IdMascota == null)
+        {
+            <div class="card-z">
+                <div class="campo">
+                    <label>Dueño * (buscá por DNI, nombre o email)</label>
+                    <div class="d-flex gap-2">
+                        <input class="input-z" placeholder="Ej. 38452110" @bind="buscarDuenio" @onkeyup="EnterBuscar" />
+                        <button type="button" class="btn-z" @onclick="BuscarDuenios"><i class="bi bi-search"></i></button>
+                    </div>
+                </div>
+                @if (duenios.Any())
+                {
+                    <select class="input-z" @bind="form.IdUsuario">
+                        <option value="0">Elegí el dueño</option>
+                        @foreach (var d in duenios)
+                        {
+                            <option value="@d.IdUsuario">@d.Nombre @(string.IsNullOrEmpty(d.Dni) ? "" : $"· DNI {d.Dni}")</option>
+                        }
+                    </select>
+                }
+                else if (buscado)
+                {
+                    <p class="texto-gris mb-0">No se encontraron dueños. El administrador puede darlo de alta en «Gestionar Usuarios».</p>
+                }
+            </div>
+        }
+
+        <div class="card-z">
+            <div class="text-center mb-3">
+                <div class="icono-redondo grande mx-auto"><i class="bi bi-heart-fill"></i></div>
+            </div>
+            <div class="campo">
+                <label>Nombre *</label>
+                <InputText class="input-z" placeholder="Nombre de la mascota" @bind-Value="form.Nombre" />
+            </div>
+            <div class="campo">
+                <label>Fecha de nacimiento (aproximada) *</label>
+                <InputDate class="input-z" @bind-Value="form.FechaNacimiento" max="@DateTime.Today.ToString("yyyy-MM-dd")" />
+                <span class="texto-gris">Edad: @Formato.Edad(form.FechaNacimiento)</span>
+            </div>
+            <div class="fila-botones">
+                <div class="campo">
+                    <label>Especie *</label>
+                    <select class="input-z" value="@idEspecie" @onchange="CambiarEspecie">
+                        <option value="0">Elegí</option>
+                        @foreach (var e in especies)
+                        {
+                            <option value="@e.IdEspecie">@e.Nombre</option>
+                        }
+                    </select>
+                </div>
+                <div class="campo">
+                    <label>Raza *</label>
+                    <InputSelect class="input-z" @bind-Value="form.IdRaza">
+                        <option value="0">Elegí</option>
+                        @foreach (var r in Razas)
+                        {
+                            <option value="@r.IdRaza">@r.Nombre</option>
+                        }
+                    </InputSelect>
+                </div>
+            </div>
+            <div class="campo">
+                <label>Sexo</label>
+                <div class="segmentado">
+                    <button type="button" class="@(form.Sexo == "Macho" ? "activo" : "")" @onclick='() => form.Sexo = "Macho"'>Macho</button>
+                    <button type="button" class="@(form.Sexo == "Hembra" ? "activo" : "")" @onclick='() => form.Sexo = "Hembra"'>Hembra</button>
+                </div>
+            </div>
+            <div class="fila-botones">
+                <div class="campo">
+                    <label>Peso (kg)</label>
+                    <InputNumber class="input-z" step="0.1" min="0" @bind-Value="form.Peso" />
+                </div>
+                <div class="campo">
+                    <label>Color</label>
+                    <InputText class="input-z" placeholder="Ej. Blanco" @bind-Value="form.Color" />
+                </div>
+            </div>
+        </div>
+
+        <Aviso Error="@errorGuardar" />
+        <button type="submit" class="btn-z btn-bloque" disabled="@guardando">
+            @if (guardando)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            @(IdMascota == null ? "Guardar Mascota" : "Guardar Cambios")
+        </button>
+    </EditForm>
+}
+
+@code {
+    [Parameter] public int? IdMascota { get; set; }
+    [Parameter] public bool ElegirDuenio { get; set; }
+    [Parameter] public EventCallback OnGuardado { get; set; }
+
+    private MascotaForm form = new();
+    private List<Especie> especies = new();
+    private List<Usuario> duenios = new();
+    private int idEspecie;
+    private string buscarDuenio = string.Empty;
+    private bool cargando = true, guardando, buscado;
+    private string? error, errorGuardar;
+
+    private IEnumerable<Raza> Razas => especies.FirstOrDefault(e => e.IdEspecie == idEspecie)?.Razas ?? new List<Raza>();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cargando = true;
+        especies = await Api.GetListaAsync<Especie>("api/especies");
+        error = Api.UltimoError;
+
+        if (IdMascota != null)
+        {
+            var m = await Api.GetAsync<Mascota>($"api/mascotas/{IdMascota}");
+            if (m == null) error = Api.UltimoError;
+            else
+            {
+                form = new MascotaForm
+                {
+                    Nombre = m.Nombre, FechaNacimiento = m.FechaNacimiento, Sexo = m.Sexo, Peso = m.Peso,
+                    Color = m.Color, IdRaza = m.IdRaza, IdUsuario = m.IdUsuario
+                };
+                idEspecie = m.IdEspecie;
+            }
+        }
+        else
+        {
+            form = new MascotaForm();
+            idEspecie = especies.FirstOrDefault()?.IdEspecie ?? 0;
+        }
+        cargando = false;
+    }
+
+    private void CambiarEspecie(ChangeEventArgs e)
+    {
+        idEspecie = int.TryParse(e.Value?.ToString(), out var id) ? id : 0;
+        form.IdRaza = 0;
+    }
+
+    private async Task EnterBuscar(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await BuscarDuenios();
+    }
+
+    private async Task BuscarDuenios()
+    {
+        duenios = await Api.GetListaAsync<Usuario>($"api/duenios?buscar={Uri.EscapeDataString(buscarDuenio.Trim())}");
+        buscado = true;
+        form.IdUsuario = duenios.Count == 1 ? duenios[0].IdUsuario : 0;
+    }
+
+    private async Task Guardar()
+    {
+        errorGuardar = null;
+        if (ElegirDuenio && IdMascota == null && form.IdUsuario == 0) { errorGuardar = "Elegí el dueño de la mascota."; return; }
+        if (string.IsNullOrWhiteSpace(form.Nombre)) { errorGuardar = "El nombre es obligatorio."; return; }
+        if (form.IdRaza == 0) { errorGuardar = "Elegí la especie y la raza."; return; }
+        if (form.FechaNacimiento > DateTime.Today) { errorGuardar = "La fecha de nacimiento no puede ser futura."; return; }
+
+        guardando = true;
+        var r = IdMascota == null
+            ? await Api.PostAsync("api/mascotas", form)
+            : await Api.PutAsync($"api/mascotas/{IdMascota}", form);
+        guardando = false;
+
+        if (r.Ok) await OnGuardado.InvokeAsync();
+        else errorGuardar = r.Error;
+    }
+}

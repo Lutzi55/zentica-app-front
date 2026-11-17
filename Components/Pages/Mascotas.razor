@@ -1,0 +1,56 @@
+﻿@page "/mascotas"
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Mis Mascotas" Volver="/home" />
+
+    <div class="buscador">
+        <i class="bi bi-search"></i>
+        <input class="input-z" placeholder="Nombre de la mascota" @bind="filtroBusqueda" @bind:event="oninput" />
+    </div>
+
+    <Aviso Cargando="cargando" Error="@error" />
+
+    @if (!cargando && !Filtradas.Any())
+    {
+        <Vacio Icono="bi-heart" Texto="@(mascotas.Any() ? "Ninguna mascota coincide con la búsqueda." : "Todavía no tenés mascotas registradas.")" />
+    }
+
+    @foreach (var m in Filtradas)
+    {
+        <div class="card-z card-cab" @onclick='() => Navigation.NavigateTo($"/mascotas/detalle/{m.IdMascota}")'>
+            <FotoMascota Foto="@m.Foto" Rosa="m.VacunaPendiente" />
+            <div class="flex-grow-1">
+                <h6>@m.Nombre</h6>
+                <span class="texto-gris">@m.Especie · @m.Raza · @Formato.Edad(m.FechaNacimiento)</span>
+            </div>
+            @if (m.VacunaPendiente)
+            {
+                <span class="chip chip-rosa">Vacuna</span>
+            }
+            <i class="bi bi-chevron-right flecha"></i>
+        </div>
+    }
+
+    <p class="texto-gris text-center mt-3">
+        <i class="bi bi-info-circle"></i> Las mascotas las registra el veterinario en la clínica. Desde el detalle podés cambiarle la foto.
+    </p>
+</div>
+
+@code {
+    private List<Mascota> mascotas = new();
+    private string filtroBusqueda = string.Empty;
+    private bool cargando = true;
+    private string? error;
+
+    private IEnumerable<Mascota> Filtradas => mascotas.Where(m =>
+        string.IsNullOrWhiteSpace(filtroBusqueda) || m.Nombre.Contains(filtroBusqueda.Trim(), StringComparison.OrdinalIgnoreCase));
+
+    protected override async Task OnInitializedAsync()
+    {
+        mascotas = await Api.GetListaAsync<Mascota>("api/mascotas");
+        error = Api.UltimoError;
+        cargando = false;
+    }
+}

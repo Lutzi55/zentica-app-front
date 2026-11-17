@@ -1,0 +1,15 @@
+@namespace Zentica_frontend.Components
+<Router AppAssembly="@typeof(MauiProgram).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(Layout.MainLayout)" />
+        <FocusOnNavigate RouteData="@routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(Layout.LayoutVacio)">
+            <div class="pantalla">
+                <Vacio Icono="bi-signpost-split" Texto="Esta pantalla no existe." />
+                <a class="btn-z btn-bloque" href="/">Volver al inicio</a>
+            </div>
+        </LayoutView>
+    </NotFound>
+</Router>

@@ -1,0 +1,71 @@
+@page "/"
+@page "/login"
+@layout LayoutVacio
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="login-fondo">
+    <div class="login-card">
+        <div class="text-center mb-4">
+            <div class="login-logo"><i class="bi bi-shield-lock-fill"></i></div>
+            <h3 class="fw-bold mb-0">Zéntica</h3>
+            <p class="texto-gris mb-0">Clínica & Veterinaria</p>
+        </div>
+
+        <form @onsubmit="HandleLogin" @onsubmit:preventDefault="true">
+            <div class="campo">
+                <label>Correo electrónico</label>
+                <input type="email" class="input-z" @bind="email" placeholder="ejemplo@zentica.com" required autocomplete="username" />
+            </div>
+
+            <div class="campo">
+                <label>Contraseña</label>
+                <div class="position-relative">
+                    <input type="@(verClave ? "text" : "password")" class="input-z" @bind="password" placeholder="••••••••" required autocomplete="current-password" />
+                    <button type="button" class="ver-clave" @onclick="() => verClave = !verClave" title="Mostrar contraseña">
+                        <i class="bi @(verClave ? "bi-eye-slash" : "bi-eye")"></i>
+                    </button>
+                </div>
+            </div>
+
+            <Aviso Error="@errorMessage" />
+
+            <button type="submit" class="btn-z btn-bloque mt-2" disabled="@cargando">
+                @if (cargando)
+                {
+                    <span class="spinner-border spinner-border-sm"></span>
+                }
+                Iniciar Sesión
+            </button>
+        </form>
+
+        <p class="texto-gris text-center mt-4 mb-0">
+            ¿No tenés cuenta u olvidaste tu contraseña? Pedísela al administrador de la clínica.
+        </p>
+    </div>
+</div>
+
+@code {
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private string? errorMessage;
+    private bool cargando;
+    private bool verClave;
+
+    protected override void OnInitialized()
+    {
+        // Si ya hay sesión, va directo a su inicio
+        if (Api.EstaLogueado) Navigation.NavigateTo(Api.RutaInicio);
+    }
+
+    private async Task HandleLogin()
+    {
+        errorMessage = null;
+        cargando = true;
+        var r = await Api.LoginAsync(email.Trim(), password);
+        cargando = false;
+
+        if (r.Ok) Navigation.NavigateTo(Api.RutaInicio);
+        else errorMessage = r.Error;
+    }
+}

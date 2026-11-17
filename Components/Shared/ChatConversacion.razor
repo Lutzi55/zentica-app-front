@@ -1,0 +1,113 @@
+@inject ApiService Api
+@inject IJSRuntime JS
+@implements IDisposable
+
+@* Conversación entre dueño y veterinario. Se actualiza sola cada 4 segundos. *@
+<div class="chat-pantalla">
+    <div class="chat-cab">
+        <BotonVolver Ruta="@ListaRuta" />
+        @if (contacto != null)
+        {
+            <Avatar Nombre="@contacto.Nombre" />
+            <div class="flex-grow-1 min-w-0">
+                <h6 class="text-truncate mb-0">@contacto.Nombre</h6>
+                <span class="texto-gris text-truncate d-block">@contacto.Detalle</span>
+            </div>
+            @if (Contacto.TieneTelefono(contacto.Telefono))
+            {
+                <a class="btn-icono editar" href="@Contacto.Llamar(contacto.Telefono)" target="_blank" title="Llamar"><i class="bi bi-telephone"></i></a>
+                <a class="btn-icono editar" href="@Contacto.WhatsApp(contacto.Telefono)" target="_blank" title="WhatsApp"><i class="bi bi-whatsapp"></i></a>
+            }
+        }
+    </div>
+
+    <div class="chat-mensajes">
+        <Aviso Cargando="cargando" Error="@error" />
+        @if (!cargando && !mensajes.Any() && contacto != null)
+        {
+            <Vacio Icono="bi-chat-heart" Texto="@($"Empezá la conversación con {contacto.Nombre}.")" />
+        }
+        @{ DateTime? diaAnterior = null; }
+        @foreach (var m in mensajes)
+        {
+            if (diaAnterior != m.FechaEnvio.Date)
+            {
+                diaAnterior = m.FechaEnvio.Date;
+                <div class="chat-dia"><span>@(m.FechaEnvio.Date == DateTime.Today ? "Hoy" : Formato.FechaLarga(m.FechaEnvio))</span></div>
+            }
+            <div class="burbuja @(m.EsMio ? "mia" : "suya")">
+                <span>@m.Texto</span>
+                <small>
+                    @m.FechaEnvio.ToString("HH:mm")
+                    @if (m.EsMio)
+                    {
+                        <i class="bi @(m.Leido ? "bi-check2-all" : "bi-check2")"></i>
+                    }
+                </small>
+            </div>
+        }
+        <div id="fin-chat"></div>
+    </div>
+
+    <form class="chat-escribir" @onsubmit="Enviar" @onsubmit:preventDefault="true">
+        <input class="input-z" placeholder="Escribí un mensaje..." @bind="texto" @bind:event="oninput" maxlength="1000" disabled="@(contacto == null)" />
+        <button type="submit" class="btn-z" disabled="@(enviando || string.IsNullOrWhiteSpace(texto))" title="Enviar"><i class="bi bi-send-fill"></i></button>
+    </form>
+</div>
+
+@code {
+    [Parameter] public int IdUsuario { get; set; }
+    [Parameter] public string ListaRuta { get; set; } = "/mensajes";
+
+    private Conversacion? contacto;
+    private List<MensajeChat> mensajes = new();
+    private string texto = string.Empty;
+    private bool cargando = true, enviando;
+    private string? error;
+    private Timer? timer;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        cargando = true;
+        contacto = await Api.GetAsync<Conversacion>($"api/mensajes/contacto/{IdUsuario}");
+        error = Api.UltimoError;
+        if (contacto != null) await Actualizar(true);
+        cargando = false;
+
+        timer?.Dispose();
+        timer = new Timer(async _ => await InvokeAsync(() => Actualizar(false)), null, 4000, 4000);
+    }
+
+    private async Task Actualizar(bool forzarScroll)
+    {
+        var nuevos = await Api.GetAsync<List<MensajeChat>>($"api/mensajes/con/{IdUsuario}");
+        if (nuevos == null) return;
+        var cambio = nuevos.Count != mensajes.Count || nuevos.LastOrDefault()?.Leido != mensajes.LastOrDefault()?.Leido;
+        mensajes = nuevos;
+        if (cambio || forzarScroll)
+        {
+            StateHasChanged();
+            await Bajar();
+        }
+    }
+
+    private async Task Enviar()
+    {
+        if (string.IsNullOrWhiteSpace(texto) || contacto == null) return;
+        enviando = true;
+        var r = await Api.PostAsync("api/mensajes", new { idDestinatario = IdUsuario, texto });
+        enviando = false;
+        if (!r.Ok) { error = r.Error; return; }
+        texto = string.Empty;
+        error = null;
+        await Actualizar(true);
+    }
+
+    private async Task Bajar()
+    {
+        try { await JS.InvokeVoidAsync("eval", "document.getElementById('fin-chat')?.scrollIntoView({behavior:'smooth'})"); }
+        catch { /* la pantalla se cerró */ }
+    }
+
+    public void Dispose() => timer?.Dispose();
+}

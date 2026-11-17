@@ -1,0 +1,21 @@
+﻿@inherits LayoutBase
+
+@* Layout del DUEÑO (rol por defecto de la app) *@
+@if (Autorizado)
+{
+    @Body
+    <BarraInferior Items="items" />
+}
+
+@code {
+    protected override string RolPermitido => "Dueño";
+
+    private readonly List<BarraInferior.Item> items = new()
+    {
+        new("Inicio", "bi-house", "/home"),
+        new("Turnos", "bi-calendar-check", "/turnos"),
+        new("Mascotas", "bi-heart", "/mascotas"),
+        new("Guardias", "bi-calendar-event", "/veterinarios/turno"),
+        new("Perfil", "bi-person", "/perfil")
+    };
+}

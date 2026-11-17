@@ -1,0 +1,214 @@
+﻿@page "/admin/veterinarios"
+@layout LayoutAdmin
+@inject ApiService Api
+
+<div class="pantalla">
+    <Encabezado Titulo="Gestión: Veterinarios" Subtitulo="Administración" Volver="/admin/home">
+        <button class="btn-z" @onclick="Nuevo"><i class="bi bi-plus-lg"></i> Nuevo</button>
+    </Encabezado>
+
+    <div class="buscador">
+        <i class="bi bi-search"></i>
+        <input class="input-z" placeholder="Buscar por nombre o matrícula" @bind="buscar" @bind:event="oninput" />
+    </div>
+
+    <div class="pills">
+        <button class="pill @(!verBajas ? "activa" : "")" @onclick="() => verBajas = false">Activos</button>
+        <button class="pill @(verBajas ? "activa" : "")" @onclick="() => verBajas = true">Dados de baja</button>
+    </div>
+
+    <Aviso Cargando="cargando" Error="@error" Ok="@ok" />
+
+    @if (!cargando)
+    {
+        @if (!Filtrados.Any())
+        {
+            <Vacio Icono="bi-heart-pulse" Texto="@(verBajas ? "No hay veterinarios dados de baja." : "Todavía no hay veterinarios. Tocá «Nuevo» para agregar uno.")" />
+        }
+        @foreach (var v in Filtrados)
+        {
+            <div class="card-z">
+                <div class="card-cab" @onclick="() => Alternar(v.IdDoctor)">
+                    <Avatar Nombre="@v.NombreCompleto" Inactivo="!v.Activo" />
+                    <div class="flex-grow-1 min-w-0">
+                        <h6 class="text-truncate">@v.NombreCompleto</h6>
+                        <span class="texto-gris">@v.Cargo · @(string.IsNullOrEmpty(v.Matricula) ? "sin matrícula" : v.Matricula)</span>
+                    </div>
+                    <button class="btn-icono editar" @onclick="() => Editar(v)" @onclick:stopPropagation="true" title="Editar"><i class="bi bi-pencil"></i></button>
+                    @if (v.Activo)
+                    {
+                        <button class="btn-icono borrar" @onclick="() => aBorrar = v" @onclick:stopPropagation="true" title="Dar de baja"><i class="bi bi-person-x"></i></button>
+                    }
+                    else
+                    {
+                        <button class="btn-icono editar" @onclick="() => Reactivar(v)" @onclick:stopPropagation="true" title="Reactivar"><i class="bi bi-arrow-counterclockwise"></i></button>
+                    }
+                    <i class="bi @(abiertos.Contains(v.IdDoctor) ? "bi-chevron-up" : "bi-chevron-down") texto-gris"></i>
+                </div>
+
+                @if (abiertos.Contains(v.IdDoctor))
+                {
+                    <div class="card-detalle">
+                        <div class="fila-dato"><span>Nombre completo</span><span>@v.NombreCompleto</span></div>
+                        <div class="fila-dato"><span>Matrícula</span><span>@(string.IsNullOrEmpty(v.Matricula) ? "-" : v.Matricula)</span></div>
+                        <div class="fila-dato"><span>Cargo</span><span>@v.Cargo</span></div>
+                        <div class="fila-dato"><span>Correo asignado</span><span>@v.Email</span></div>
+                        <div class="fila-dato"><span>Teléfono</span><span>@(v.Telefono ?? "-")</span></div>
+                        <div class="fila-dato"><span>Contraseña</span><span>•••••••• (se cambia desde Editar)</span></div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<Hoja Visible="formVisible" Titulo="@(editandoId == null ? "Nuevo veterinario" : "Editar veterinario")" OnCerrar="() => formVisible = false">
+    <EditForm Model="form" OnValidSubmit="Guardar">
+        <div class="fila-botones">
+            <div class="campo">
+                <label>Nombre *</label>
+                <InputText class="input-z" @bind-Value="form.Nombre" />
+            </div>
+            <div class="campo">
+                <label>Apellido *</label>
+                <InputText class="input-z" @bind-Value="form.Apellido" />
+            </div>
+        </div>
+        <div class="fila-botones">
+            <div class="campo">
+                <label>Matrícula *</label>
+                <InputText class="input-z" @bind-Value="form.Matricula" placeholder="MP-00000" />
+            </div>
+            <div class="campo">
+                <label>Cargo</label>
+                <InputText class="input-z" @bind-Value="form.Cargo" />
+            </div>
+        </div>
+        <div class="campo">
+            <label>Correo electrónico (para iniciar sesión) *</label>
+            <InputText type="email" class="input-z" @bind-Value="form.Email" />
+        </div>
+        <div class="campo">
+            <label>Teléfono</label>
+            <InputText class="input-z" @bind-Value="form.Telefono" />
+        </div>
+        <div class="campo">
+            <label>@(editandoId == null ? "Contraseña * (mínimo 6)" : "Nueva contraseña (dejar vacío para no cambiarla)")</label>
+            <InputText type="password" class="input-z" @bind-Value="form.Password" />
+        </div>
+
+        <Aviso Error="@errorForm" />
+        <button type="submit" class="btn-z btn-bloque" disabled="@guardando">
+            @if (guardando)
+            {
+                <span class="spinner-border spinner-border-sm"></span>
+            }
+            Guardar
+        </button>
+    </EditForm>
+</Hoja>
+
+<Confirmar Visible="aBorrar != null" Titulo="Dar de baja"
+           Mensaje="@($"¿Dar de baja a {aBorrar?.NombreCompleto}? No podrá iniciar sesión ni recibir turnos. Podés reactivarlo después.")"
+           TextoBoton="Dar de baja" Procesando="guardando" OnConfirmar="ConfirmarBaja" OnCancelar="() => aBorrar = null" />
+
+
+<Exito Visible="exito != null" Titulo="@(exito ?? "")" Mensaje="@exitoMsg" OnCerrar="CerrarExito" />
+
+@code {
+    private List<Veterinario> veterinarios = new();
+    private string buscar = string.Empty;
+    private bool verBajas;
+    private readonly HashSet<int> abiertos = new();
+
+    private bool cargando = true, guardando, formVisible;
+    private string? error, ok, errorForm;
+
+    private VeterinarioForm form = new();
+    private int? editandoId;
+    private Veterinario? aBorrar;
+
+    private IEnumerable<Veterinario> Filtrados => veterinarios
+        .Where(v => v.Activo != verBajas)
+        .Where(v => string.IsNullOrWhiteSpace(buscar)
+                    || v.NombreCompleto.ToLower().Contains(buscar.Trim().ToLower())
+                    || v.Matricula.ToLower().Contains(buscar.Trim().ToLower()));
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        veterinarios = await Api.GetListaAsync<Veterinario>("api/doctores?todos=true");
+        error = Api.UltimoError;
+        cargando = false;
+    }
+
+    private void Alternar(int id)
+    {
+        if (!abiertos.Remove(id)) abiertos.Add(id);
+    }
+
+    private void Nuevo()
+    {
+        editandoId = null;
+        form = new VeterinarioForm();
+        errorForm = null;
+        formVisible = true;
+    }
+
+    private void Editar(Veterinario v)
+    {
+        editandoId = v.IdDoctor;
+        form = new VeterinarioForm
+        {
+            Nombre = v.Nombre, Apellido = v.Apellido, Matricula = v.Matricula,
+            Cargo = v.Cargo, Email = v.Email, Telefono = v.Telefono
+        };
+        errorForm = null;
+        formVisible = true;
+    }
+
+    private async Task Guardar()
+    {
+        errorForm = null;
+        if (string.IsNullOrWhiteSpace(form.Nombre) || string.IsNullOrWhiteSpace(form.Apellido)) { errorForm = "Completá nombre y apellido."; return; }
+        if (string.IsNullOrWhiteSpace(form.Matricula)) { errorForm = "La matrícula es obligatoria."; return; }
+        if (string.IsNullOrWhiteSpace(form.Email)) { errorForm = "El correo es obligatorio."; return; }
+        if (editandoId == null && (form.Password?.Length ?? 0) < 6) { errorForm = "La contraseña debe tener al menos 6 caracteres."; return; }
+
+        guardando = true;
+        var r = editandoId == null
+            ? await Api.PostAsync("api/doctores", form)
+            : await Api.PutAsync($"api/doctores/{editandoId}", form);
+        guardando = false;
+
+        if (!r.Ok) { errorForm = r.Error; return; }
+        formVisible = false;
+        await Cargar();
+        exito = editandoId == null ? "¡Veterinario creado!" : "¡Cambios guardados!";
+        exitoMsg = editandoId == null ? $"{form.Nombre} {form.Apellido} ya puede iniciar sesión con su correo." : null;
+    }
+
+    private async Task ConfirmarBaja()
+    {
+        if (aBorrar == null) return;
+        guardando = true;
+        var nombre = aBorrar.NombreCompleto;
+        var r = await Api.DeleteAsync($"api/doctores/{aBorrar.IdDoctor}");
+        guardando = false;
+        aBorrar = null;
+        await Cargar();
+        if (r.Ok) ok = $"{nombre} fue dado de baja."; else { error = r.Error; ok = null; }
+    }
+
+    private async Task Reactivar(Veterinario v)
+    {
+        var r = await Api.PatchAsync<object?>($"api/doctores/{v.IdDoctor}/reactivar", null);
+        await Cargar();
+        if (r.Ok) ok = $"{v.NombreCompleto} fue reactivado."; else { error = r.Error; ok = null; }
+    }
+
+    private string? exito, exitoMsg;
+    private void CerrarExito() => exito = null;
+}

@@ -1,0 +1,120 @@
+﻿@page "/doctor/home"
+@layout LayoutDoctor
+@inject NavigationManager Navigation
+@inject ApiService Api
+
+<div class="home">
+    <div class="encabezado">
+        <div>
+            <small>Veterinario · Zéntica</small>
+            <h2>¡Hola, @Api.Sesion?.Nombre!</h2>
+        </div>
+        <button class="avatar" @onclick='() => Navigation.NavigateTo("/doctor/perfil")' title="Mi perfil">@Iniciales</button>
+    </div>
+
+    @if (Api.Sesion?.IdDoctor == null)
+    {
+        <Aviso Error="Tu usuario no tiene ficha de veterinario. Pedile al administrador que te cargue en «Gestionar Veterinarios»." />
+    }
+
+    <!-- Solicitudes de turno pendientes -->
+    <div class="card-z">
+        <div class="d-flex align-items-center gap-2 mb-1">
+            <i class="bi bi-bell-fill text-rosa"></i>
+            <h6>Aceptar Turnos</h6>
+        </div>
+        <p class="texto-gris mb-3">
+            @(pendientes.Count == 0 ? "No tenés solicitudes pendientes." : $"Tenés {pendientes.Count} solicitud(es) de turno pendiente(s).")
+        </p>
+        <Aviso Cargando="cargando" Error="@error" Ok="@ok" />
+        <div class="carrusel">
+            @foreach (var t in pendientes)
+            {
+                <div class="card-z">
+                    <div class="icono-redondo mx-auto mb-2"><i class="bi bi-heart-fill"></i></div>
+                    <h6>@t.Mascota</h6>
+                    <span class="texto-gris d-block">@t.Raza</span>
+                    <span class="texto-gris d-block">@Formato.Fecha(t.FechaYHora) · @Formato.Hora(t.FechaYHora)</span>
+                    <span class="texto-gris d-block mb-2">@(t.Motivo ?? "Sin motivo")</span>
+                    <div class="d-grid gap-1">
+                        <button class="btn-z" disabled="@procesando" @onclick='() => Cambiar(t, "Aceptado")'>Aceptar</button>
+                        <button class="btn-z-rosa" disabled="@procesando" @onclick='() => Cambiar(t, "Rechazado")'>Rechazar</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="tarjeta" @onclick='() => Navigation.NavigateTo("/doctor/agenda")'>
+        <div class="icono verde"><i class="bi bi-calendar-check-fill"></i></div>
+        <div class="texto"><h5>Mi Agenda de Hoy</h5><p>@turnosHoy turno(s) para hoy · ver citas</p></div>
+        <i class="bi bi-chevron-right flecha"></i>
+    </div>
+
+    <div class="tarjeta" @onclick='() => Navigation.NavigateTo("/doctor/pacientes")'>
+        <div class="icono verde"><i class="bi bi-clipboard2-pulse-fill"></i></div>
+        <div class="texto"><h5>Pacientes / Fichas</h5><p>Historial clínico y diagnósticos</p></div>
+        <i class="bi bi-chevron-right flecha"></i>
+    </div>
+
+    <div class="tarjeta" @onclick='() => Navigation.NavigateTo("/doctor/mensajes")'>
+        <div class="icono verde"><i class="bi bi-chat-dots-fill"></i></div>
+        <div class="texto"><h5>Mensajes</h5><p>@(noLeidos > 0 ? $"{noLeidos} mensaje(s) sin leer" : "Chat con los dueños")</p></div>
+        @if (noLeidos > 0)
+        {
+            <span class="badge-no-leidos">@noLeidos</span>
+        }
+        <i class="bi bi-chevron-right flecha"></i>
+    </div>
+
+    <div class="tarjeta" @onclick='() => Navigation.NavigateTo("/doctor/guardias")'>
+        <div class="icono rosa"><i class="bi bi-calendar2-week-fill"></i></div>
+        <div class="texto"><h5>Días de Guardia</h5><p>Ver calendario asignado</p></div>
+        <i class="bi bi-chevron-right flecha"></i>
+    </div>
+</div>
+
+
+<Exito Visible="exito != null" Titulo="@(exito ?? "")" Mensaje="@exitoMsg" OnCerrar="CerrarExito" />
+
+@code {
+    private List<Turno> pendientes = new();
+    private int turnosHoy, noLeidos;
+    private bool cargando = true, procesando;
+    private string? error, ok;
+
+    protected override Task OnInitializedAsync() => Cargar();
+
+    private async Task Cargar()
+    {
+        cargando = true;
+        var todos = await Api.GetListaAsync<Turno>("api/turnos");
+        error = Api.UltimoError;
+        pendientes = todos.Where(t => t.Estado == "Pendiente" && t.FechaYHora >= DateTime.Now).ToList();
+        noLeidos = await Api.GetAsync<int>("api/mensajes/no-leidos");
+        turnosHoy = todos.Count(t => t.FechaYHora.Date == DateTime.Today && t.Estado is "Aceptado" or "Pendiente");
+        cargando = false;
+    }
+
+    private async Task Cambiar(Turno t, string estado)
+    {
+        procesando = true;
+        var r = await Api.PatchAsync($"api/turnos/{t.IdTurno}/estado", new { estado });
+        procesando = false;
+        await Cargar();
+        if (r.Ok && estado == "Aceptado") { exito = "¡Turno aceptado!"; exitoMsg = $"{t.Mascota} · {Formato.FechaLarga(t.FechaYHora)}, {Formato.Hora(t.FechaYHora)}"; }
+        else if (r.Ok) ok = $"Turno de {t.Mascota} rechazado.";
+        else error = r.Error;
+    }
+
+    private void CerrarSesion()
+    {
+        Api.CerrarSesion();
+        Navigation.NavigateTo("/login");
+    }
+
+    private string Iniciales => string.Concat((Api.Sesion?.Nombre ?? "?").Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(x => char.ToUpper(x[0])));
+
+    private string? exito, exitoMsg;
+    private void CerrarExito() => exito = null;
+}
